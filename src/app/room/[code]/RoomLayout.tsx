@@ -311,8 +311,8 @@ function SeatAvatar({
           ? `0 0 0 4px rgba(34,197,94,0.35), 0 0 18px rgba(34,197,94,0.45)`
           : `0 4px 14px rgba(0,0,0,0.45)`,
       }}>
-        {track ? (
-          <VideoTrack trackRef={track} className="w-full h-full object-cover" />
+        {track && 'publication' in track && track.publication ? (
+          <VideoTrack trackRef={track as any} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center" style={{
             background: isLocal ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)'
