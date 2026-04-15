@@ -1,0 +1,495 @@
+'use client'
+
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useGesture } from '@/lib/useGesture'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Highlight from '@tiptap/extension-highlight'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
+import Image from '@tiptap/extension-image'
+import Placeholder from '@tiptap/extension-placeholder'
+import Underline from '@tiptap/extension-underline'
+
+type Project = { id: string; name: string; created_at: string }
+
+// ── Toolbar button ──────────────────────────────────────
+function ToolBtn({ onClick, active, title, children }: {
+  onClick: () => void; active?: boolean; title: string; children: React.ReactNode
+}) {
+  return (
+    <button
+      onMouseDown={e => { e.preventDefault(); onClick() }}
+      title={title}
+      style={{
+        padding: '3px 7px', borderRadius: 4, border: 'none', cursor: 'pointer',
+        fontWeight: 'bold', fontSize: 13, fontFamily: 'sans-serif',
+        background: active ? '#c9935a' : 'rgba(139,90,43,0.12)',
+        color: active ? '#fff' : '#5a3010',
+        transition: 'background 0.12s',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ── Toolbar ─────────────────────────────────────────────
+function Toolbar({ editor, onImage }: { editor: any; onImage: () => void }) {
+  const [, rerender] = useState(0)
+
+  useEffect(() => {
+    if (!editor) return
+    const fn = () => rerender(n => n + 1)
+    editor.on('transaction', fn)
+    return () => { editor.off('transaction', fn) }
+  }, [editor])
+
+  if (!editor) return null
+
+  function insertDate() {
+    const now = new Date()
+    const str = now.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    editor.chain().focus().insertContent(`📅 ${str}\n`).run()
+  }
+
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 4, padding: '7px 20px 7px 76px',
+      borderBottom: '1.5px solid #c8d8ea', background: '#f0ebe0',
+      alignItems: 'center', flexShrink: 0,
+    }}>
+      {/* Text style */}
+      <ToolBtn onClick={() => editor.chain().focus().toggleBold().run()}
+        active={editor.isActive('bold')} title="Negrita (Ctrl+B)">B</ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleItalic().run()}
+        active={editor.isActive('italic')} title="Cursiva (Ctrl+I)"><em>I</em></ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleUnderline().run()}
+        active={editor.isActive('underline')} title="Subrayado (Ctrl+U)"><u>U</u></ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleStrike().run()}
+        active={editor.isActive('strike')} title="Tachado"><s>S</s></ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleHighlight().run()}
+        active={editor.isActive('highlight')} title="Resaltar">🖍</ToolBtn>
+
+      <div style={{ width: 1, height: 20, background: '#c8b890', margin: '0 2px' }} />
+
+      {/* Headings */}
+      <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+        active={editor.isActive('heading', { level: 1 })} title="Título grande">H1</ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+        active={editor.isActive('heading', { level: 2 })} title="Título mediano">H2</ToolBtn>
+
+      <div style={{ width: 1, height: 20, background: '#c8b890', margin: '0 2px' }} />
+
+      {/* Lists */}
+      <ToolBtn onClick={() => editor.chain().focus().toggleBulletList().run()}
+        active={editor.isActive('bulletList')} title="Lista con viñetas">• Lista</ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        active={editor.isActive('orderedList')} title="Lista numerada">1. Lista</ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleTaskList().run()}
+        active={editor.isActive('taskList')} title="Lista de tareas">✅ Tareas</ToolBtn>
+
+      <div style={{ width: 1, height: 20, background: '#c8b890', margin: '0 2px' }} />
+
+      {/* Extras */}
+      <ToolBtn onClick={insertDate} title="Insertar fecha de hoy">📅 Fecha</ToolBtn>
+      <ToolBtn onClick={onImage} title="Insertar imagen">🖼 Imagen</ToolBtn>
+    </div>
+  )
+}
+
+// ── Main component ───────────────────────────────────────
+export default function Notebook({ roomCode, userId }: { roomCode: string; userId: string }) {
+  const [projects,       setProjects]       = useState<Project[]>([])
+  const [selected,       setSelected]       = useState<Project | null>(null)
+  const [noteId,         setNoteId]         = useState<string | null>(null)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [saving,         setSaving]         = useState(false)
+  const saveTimeout   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isRemote      = useRef(false)
+  const fileInputRef  = useRef<HTMLInputElement>(null)
+  // flip: 'idle' | 'flipping-left' | 'flipping-right'
+  const [flip,        setFlip]        = useState<'idle' | 'flipping-left' | 'flipping-right'>('idle')
+  const projectsRef = useRef<typeof projects>(projects)
+  useEffect(() => { projectsRef.current = projects }, [projects])
+
+  // ── Navigate with page-turn animation ────────────────────
+  function navigatePage(dir: 'left' | 'right') {
+    if (flip !== 'idle') return
+    const list = projectsRef.current
+    if (!list.length) return
+    const idx = selected ? list.findIndex(p => p.id === selected.id) : -1
+
+    const next = dir === 'right'
+      ? list[(idx + 1) % list.length]
+      : list[(idx - 1 + list.length) % list.length]
+
+    if (!next || next.id === selected?.id) return
+
+    // Switch content immediately (overlay covers the transition)
+    setSelected(next)
+    // Start flip overlay animation
+    setFlip(dir === 'right' ? 'flipping-left' : 'flipping-right')
+    // Remove overlay after animation completes
+    setTimeout(() => setFlip('idle'), 560)
+  }
+
+  // ── Gesture: swipe to navigate ───────────────────────────
+  useGesture(useCallback((e) => {
+    if (e.gesture === 'swipe_left')  navigatePage('right')
+    if (e.gesture === 'swipe_right') navigatePage('left')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []), ['swipe_left', 'swipe_right'])
+
+  // ── Editor ──────────────────────────────────────────────
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit,
+      Underline,
+      Highlight.configure({ multicolor: false }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Image.configure({ inline: false, allowBase64: true }),
+      Placeholder.configure({ placeholder: 'Empezá a escribir acá...' }),
+    ],
+    content: '',
+    editorProps: {
+      attributes: {
+        style: [
+          'outline:none',
+          'min-height:100%',
+          'padding:8px 28px 40px 76px',
+          'font-size:15px',
+          'line-height:32px',
+          'color:#1a1408',
+          'font-family:Georgia,serif',
+        ].join(';'),
+      },
+    },
+    onUpdate: ({ editor }) => {
+      if (isRemote.current) return
+      const json = JSON.stringify(editor.getJSON())
+      saveNote(json)
+      broadcastNote(json)
+    },
+  })
+
+  // ── Save ────────────────────────────────────────────────
+  const saveNote = useCallback((json: string) => {
+    setSaving(true)
+    if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    saveTimeout.current = setTimeout(async () => {
+      if (!noteId) return
+      await supabase.from('notes')
+        .update({ content: json, updated_at: new Date().toISOString() })
+        .eq('id', noteId)
+      setSaving(false)
+    }, 800)
+  }, [noteId])
+
+  const broadcastNote = useCallback((json: string) => {
+    supabase.channel(`notebook:${roomCode}`).send({
+      type: 'broadcast', event: 'note-updated',
+      payload: { project_id: selected?.id, content: json },
+    })
+  }, [roomCode, selected])
+
+  // ── Realtime ────────────────────────────────────────────
+  useEffect(() => {
+    loadProjects()
+    const ch = supabase.channel(`notebook:${roomCode}`)
+      .on('broadcast', { event: 'project-created' }, () => loadProjects())
+      .on('broadcast', { event: 'note-updated' }, ({ payload }) => {
+        if (!editor || !selected || payload.project_id !== selected.id) return
+        isRemote.current = true
+        try {
+          editor.commands.setContent(JSON.parse(payload.content))
+        } catch {
+          editor.commands.setContent(payload.content)
+        }
+        isRemote.current = false
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [roomCode, editor, selected])
+
+  useEffect(() => { if (selected) loadNote(selected.id) }, [selected])
+
+  // ── Data functions ───────────────────────────────────────
+  async function loadProjects() {
+    const { data } = await supabase.from('projects').select('*')
+      .eq('room_code', roomCode).order('created_at', { ascending: true })
+    if (data) setProjects(data)
+  }
+
+  async function loadNote(projectId: string) {
+    if (!editor) return
+    const { data } = await supabase.from('notes').select('*')
+      .eq('project_id', projectId).single()
+
+    if (data) {
+      setNoteId(data.id)
+      isRemote.current = true
+      try {
+        editor.commands.setContent(JSON.parse(data.content || '""'))
+      } catch {
+        editor.commands.setContent(data.content || '')
+      }
+      isRemote.current = false
+    } else {
+      const { data: n } = await supabase.from('notes')
+        .insert({ project_id: projectId, content: '{}' }).select().single()
+      if (n) {
+        setNoteId(n.id)
+        editor.commands.clearContent()
+      }
+    }
+  }
+
+  async function createProject(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newProjectName.trim()) return
+    const { data } = await supabase.from('projects')
+      .insert({ name: newProjectName.trim(), room_code: roomCode, created_by: userId })
+      .select().single()
+    if (data) {
+      setNewProjectName('')
+      await loadProjects()
+      setSelected(data)
+      supabase.channel(`notebook:${roomCode}`).send({
+        type: 'broadcast', event: 'project-created', payload: {},
+      })
+    }
+  }
+
+  // ── Image upload (base64) ───────────────────────────────
+  function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !editor) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      editor.chain().focus().setImage({ src: reader.result as string }).run()
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  // ── Render ──────────────────────────────────────────────
+  return (
+    <div className="flex h-full overflow-hidden" style={{ fontFamily: 'Georgia, serif' }}>
+
+      <style>{`
+        /* Tiptap content styles */
+        .tiptap-notebook h1 { font-size:22px; font-weight:bold; color:#2d1e0a; margin:8px 0 4px; line-height:32px }
+        .tiptap-notebook h2 { font-size:17px; font-weight:bold; color:#3d2a10; margin:6px 0 2px; line-height:32px }
+        .tiptap-notebook p  { margin:0; line-height:32px; }
+        .tiptap-notebook ul { padding-left:24px; margin:0 }
+        .tiptap-notebook ol { padding-left:24px; margin:0 }
+        .tiptap-notebook li { line-height:32px }
+        .tiptap-notebook mark { background:#fde047; border-radius:2px; padding:0 2px }
+        .tiptap-notebook img { max-width:100%; border-radius:6px; margin:8px 0; box-shadow:0 2px 8px rgba(0,0,0,0.15) }
+        .tiptap-notebook ul[data-type="taskList"] { list-style:none; padding-left:4px }
+        .tiptap-notebook ul[data-type="taskList"] li { display:flex; align-items:flex-start; gap:8px; line-height:32px }
+        .tiptap-notebook ul[data-type="taskList"] li input[type="checkbox"] { margin-top:8px; width:15px; height:15px; cursor:pointer; accent-color:#8b4513 }
+        .tiptap-notebook .is-editor-empty:first-child::before {
+          content: attr(data-placeholder);
+          color:#c0b090; font-style:italic; float:left; height:0; pointer-events:none;
+        }
+        .tiptap-notebook strong { color:#1a0e04 }
+        .tiptap-notebook .ProseMirror {
+          background-image: repeating-linear-gradient(
+            transparent, transparent 31px, #c8d8ea 31px, #c8d8ea 32px
+          );
+          background-position-y: 6px;
+        }
+      `}</style>
+
+      {/* Hidden file input */}
+      <input ref={fileInputRef} type="file" accept="image/*"
+        style={{ display: 'none' }} onChange={handleImageFile} />
+
+      {/* ── Leather sidebar ── */}
+      <div className="flex flex-col shrink-0" style={{
+        width: 200,
+        background: 'linear-gradient(175deg, #3b1a08 0%, #271005 60%, #1c0b03 100%)',
+        borderRight: '4px solid #150802',
+        boxShadow: 'inset -6px 0 14px rgba(0,0,0,0.35)',
+      }}>
+        <div style={{ padding: '18px 14px 12px', borderBottom: '1px solid rgba(212,165,90,0.18)' }}>
+          <p style={{ color: '#c9935a', fontSize: 10, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', fontFamily: 'sans-serif', marginBottom: 12 }}>
+            Proyectos
+          </p>
+          <form onSubmit={createProject} style={{ display: 'flex', gap: 6 }}>
+            <input type="text" value={newProjectName}
+              onChange={e => setNewProjectName(e.target.value)}
+              placeholder="Nuevo proyecto..."
+              style={{
+                flex: 1, background: 'rgba(255,220,150,0.08)', color: '#f0dfc0',
+                borderTop: 'none', borderRight: 'none', borderBottom: '1px solid rgba(212,165,90,0.25)', borderLeft: 'none',
+                borderRadius: 6, padding: '5px 8px', fontSize: 12,
+                fontFamily: 'sans-serif', outline: 'none', minWidth: 0,
+              }} />
+            <button type="submit" style={{
+              background: '#8b4513', color: '#f5e6d0',
+              borderTop: 'none', borderRight: 'none', borderBottom: 'none', borderLeft: 'none',
+              borderRadius: 6, padding: '5px 10px', fontSize: 14,
+              fontWeight: 'bold', cursor: 'pointer', fontFamily: 'sans-serif',
+            }}>+</button>
+          </form>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px' }}>
+          {projects.length === 0 ? (
+            <p style={{ color: '#7a5030', fontSize: 12, textAlign: 'center', marginTop: 20, fontFamily: 'sans-serif' }}>
+              Sin proyectos aún
+            </p>
+          ) : projects.map(p => (
+            <button key={p.id} onClick={() => setSelected(p)} style={{
+              width: '100%', textAlign: 'left', display: 'block',
+              padding: '9px 10px 9px 14px', marginBottom: 2, borderRadius: 6,
+              cursor: 'pointer', transition: 'all 0.15s',
+              background: selected?.id === p.id ? 'rgba(212,165,90,0.18)' : 'transparent',
+              borderTop: 'none', borderRight: 'none', borderBottom: 'none',
+              borderLeft: `3px solid ${selected?.id === p.id ? '#c9935a' : 'transparent'}`,
+              color: selected?.id === p.id ? '#f0dfc0' : '#9a7050',
+              fontSize: 13, fontFamily: 'sans-serif',
+            }}>
+              {selected?.id === p.id ? '▶ ' : ''}{p.name}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(212,165,90,0.12)' }}>
+          <p style={{ color: '#5a3520', fontSize: 10, fontFamily: 'sans-serif', textAlign: 'center', letterSpacing: 1 }}>
+            {projects.length} proyecto{projects.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Spiral binding ── */}
+      <div style={{
+        width: 26, background: 'linear-gradient(180deg, #c8b890 0%, #b0a070 100%)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'space-around', padding: '20px 0',
+        borderRight: '1px solid #a09060', flexShrink: 0,
+        boxShadow: '2px 0 6px rgba(0,0,0,0.2)',
+      }}>
+        {Array.from({ length: 16 }).map((_, i) => (
+          <div key={i} style={{
+            width: 18, height: 18, borderRadius: '50%',
+            border: '2.5px solid #7a6840',
+            background: 'radial-gradient(circle at 35% 35%, #e0d0a0, #9a8850)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.2)',
+            flexShrink: 0,
+          }} />
+        ))}
+      </div>
+
+      {/* ── Page ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#faf6ef', overflow: 'hidden', position: 'relative' }}>
+
+        {/* Left margin red line */}
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0, left: 68,
+          width: 1.5, background: '#e87878', opacity: 0.55, pointerEvents: 'none',
+        }} />
+
+        {/* Page header */}
+        <div style={{
+          padding: '10px 20px 8px 76px', borderBottom: '1.5px solid #c8d8ea',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+        }}>
+          {selected ? (
+            <div>
+              <p style={{ fontSize: 10, color: '#a09070', fontFamily: 'sans-serif', letterSpacing: 1, textTransform: 'uppercase' }}>Proyecto</p>
+              <p style={{ fontSize: 17, color: '#2d2010', fontWeight: 'bold', lineHeight: 1.3 }}>{selected.name}</p>
+            </div>
+          ) : (
+            <p style={{ fontSize: 14, color: '#c0b090', fontStyle: 'italic' }}>Seleccioná un proyecto</p>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: '#b0a080', fontFamily: 'sans-serif' }}>
+              {saving ? '✎ Guardando...' : selected ? '✓ Guardado' : ''}
+            </span>
+            {/* Page navigation arrows */}
+            {projects.length > 1 && (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button onClick={() => navigatePage('left')} disabled={flip !== 'idle'} style={{
+                  background: 'rgba(0,0,0,0.06)', border: '1px solid #d0c8b0',
+                  borderRadius: 6, width: 28, height: 28, cursor: 'pointer',
+                  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#7a6040', opacity: flip !== 'idle' ? 0.4 : 1,
+                }}>‹</button>
+                <button onClick={() => navigatePage('right')} disabled={flip !== 'idle'} style={{
+                  background: 'rgba(0,0,0,0.06)', border: '1px solid #d0c8b0',
+                  borderRadius: 6, width: 28, height: 28, cursor: 'pointer',
+                  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#7a6040', opacity: flip !== 'idle' ? 0.4 : 1,
+                }}>›</button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Toolbar (only when project selected) */}
+        {selected && <Toolbar editor={editor} onImage={() => fileInputRef.current?.click()} />}
+
+        {/* Editor */}
+        {!selected ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ textAlign: 'center', color: '#c8b890' }}>
+              <p style={{ fontSize: 48, marginBottom: 10 }}>📖</p>
+              <p style={{ fontSize: 15, fontStyle: 'italic' }}>Seleccioná o creá un proyecto</p>
+            </div>
+          </div>
+        ) : (
+          <div className="tiptap-notebook" style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+            <EditorContent editor={editor} style={{ height: '100%' }} />
+
+            {/* Page flip overlay */}
+            {flip !== 'idle' && (
+              <div style={{
+                position: 'absolute', inset: 0,
+                pointerEvents: 'none', zIndex: 20,
+                transformOrigin: flip === 'flipping-left' ? 'right center' : 'left center',
+                animation: `${flip === 'flipping-left' ? 'pageFlipLeft' : 'pageFlipRight'} 0.56s ease-in-out forwards`,
+                background: `
+                  repeating-linear-gradient(
+                    #faf6ef 0px, #faf6ef 31px,
+                    #c8d8ea 31px, #c8d8ea 32px
+                  )`,
+                backgroundPositionY: '6px',
+              }}>
+                {/* Red margin line on overlay */}
+                <div style={{
+                  position: 'absolute', top: 0, bottom: 0, left: 68,
+                  width: 1.5, background: '#e87878', opacity: 0.55,
+                }} />
+                {/* Shadow on fold edge */}
+                <div style={{
+                  position: 'absolute', top: 0, bottom: 0,
+                  right: flip === 'flipping-left' ? 0 : 'auto',
+                  left: flip === 'flipping-right' ? 0 : 'auto',
+                  width: 40,
+                  background: flip === 'flipping-left'
+                    ? 'linear-gradient(to right, transparent, rgba(0,0,0,0.12))'
+                    : 'linear-gradient(to left, transparent, rgba(0,0,0,0.12))',
+                }} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Page curl */}
+        <div style={{
+          position: 'absolute', bottom: 0, right: 0, width: 0, height: 0,
+          borderStyle: 'solid', borderWidth: '0 0 36px 36px',
+          borderColor: 'transparent transparent #e0d8c8 transparent',
+          pointerEvents: 'none',
+        }} />
+      </div>
+    </div>
+  )
+}
