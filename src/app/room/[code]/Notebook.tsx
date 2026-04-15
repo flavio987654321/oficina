@@ -97,10 +97,11 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
   const [pageIndex, setPageIndex] = useState(0)
   const [pageFull,  setPageFull]  = useState(false)
 
-  // slide animation
-  type SlidePhase = 'idle' | 'out' | 'in'
-  const [slidePhase, setSlidePhase] = useState<SlidePhase>('idle')
-  const [slideDir,   setSlideDir]   = useState<'left' | 'right'>('left')
+  // 3D page-turn animation
+  const [slideDir,    setSlideDir]    = useState<'left' | 'right'>('left')
+  const [showExit,    setShowExit]    = useState(false)   // exit div visible
+  const [showEnter,   setShowEnter]   = useState(false)   // enter anim on editor
+  const [exitHtml,    setExitHtml]    = useState('')       // snapshot of old page
   const transitioning = useRef(false)
 
   // refs for stable gesture closures
@@ -158,6 +159,12 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
   })
 
   useEffect(() => { editorRef.current = editor }, [editor])
+
+  // Block editor input when page is full
+  useEffect(() => {
+    if (!editor) return
+    editor.setEditable(!pageFull)
+  }, [editor, pageFull])
 
   // ── Save ──────────────────────────────────────────────
   const saveNote = useCallback((pagesData: object[]) => {
@@ -274,7 +281,7 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     e.target.value = ''
   }
 
-  // ── Page navigation ───────────────────────────────────
+  // ── Page navigation (3D flip) ─────────────────────────
   const goToPage = useCallback((n: number) => {
     if (transitioning.current) return
     const allPages = pagesRef.current
@@ -284,10 +291,15 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     const dir = n > pageIndexRef.current ? 'left' : 'right'
     transitioning.current = true
     setSlideDir(dir)
-    setSlidePhase('out')
 
+    // Snapshot current page HTML for the exit animation
+    const prose = editorRef.current?.view.dom as HTMLElement | null
+    setExitHtml(prose?.innerHTML ?? '')
+    setShowExit(true)
+    setShowEnter(false)
+
+    // After exit animation → swap content → enter animation
     setTimeout(() => {
-      // Switch content while off-screen
       isRemote.current = true
       try { editorRef.current?.commands.setContent(allPages[n] || {}) }
       catch { editorRef.current?.commands.clearContent() }
@@ -295,13 +307,14 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
       setPageIndex(n)
       pageIndexRef.current = n
       setPageFull(false)
-      setSlidePhase('in')
+      setShowExit(false)
+      setShowEnter(true)
 
       setTimeout(() => {
-        setSlidePhase('idle')
+        setShowEnter(false)
         transitioning.current = false
-      }, 240)
-    }, 180)
+      }, 400)
+    }, 300)
   }, [])
 
   function addPage() {
@@ -336,11 +349,6 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     if (e.gesture === 'swipe_right') goToPage(pageIndexRef.current - 1)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goToPage]), ['swipe_left', 'swipe_right'])
-
-  // ── Slide class ───────────────────────────────────────
-  const slideClass =
-    slidePhase === 'out' ? (slideDir === 'left' ? 'nb-slide-out-left'  : 'nb-slide-out-right') :
-    slidePhase === 'in'  ? (slideDir === 'left' ? 'nb-slide-in-right'  : 'nb-slide-in-left')   : ''
 
   // ── Render ────────────────────────────────────────────
   return (
@@ -508,7 +516,40 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
               flexShrink: 0, height: PAGE_HEIGHT,
               overflow: 'hidden', position: 'relative',
             }}>
-              <div className={`tiptap-notebook ${slideClass}`} style={{ height: '100%' }}>
+              {/* EXIT: current page folds away in 3D */}
+              {showExit && exitHtml && (
+                <div
+                  className="tiptap-notebook"
+                  style={{
+                    position: 'absolute', inset: 0, zIndex: 3,
+                    transformOrigin: slideDir === 'left' ? 'right center' : 'left center',
+                    animation: `${slideDir === 'left' ? 'nb3DOutLeft' : 'nb3DOutRight'} 0.3s ease-in forwards`,
+                    background: '#faf6ef',
+                    padding: `${PAD_TOP}px 28px ${PAD_BOTTOM}px 76px`,
+                    backgroundImage: `repeating-linear-gradient(transparent,transparent 31px,#c8d8ea 31px,#c8d8ea 32px)`,
+                    backgroundPositionY: `${PAD_TOP - 1}px`,
+                    fontSize: '15px', lineHeight: '32px',
+                    color: '#1a1408', fontFamily: 'Georgia,serif',
+                    boxShadow: slideDir === 'left'
+                      ? 'inset -8px 0 20px rgba(0,0,0,0.12)'
+                      : 'inset 8px 0 20px rgba(0,0,0,0.12)',
+                  }}
+                  dangerouslySetInnerHTML={{ __html: exitHtml }}
+                />
+              )}
+
+              {/* ENTER: new page unfolds in 3D */}
+              <div
+                className="tiptap-notebook"
+                style={{
+                  position: 'absolute', inset: 0, zIndex: 2,
+                  transformOrigin: slideDir === 'left' ? 'left center' : 'right center',
+                  animation: showEnter
+                    ? `${slideDir === 'left' ? 'nb3DInFromRight' : 'nb3DInFromLeft'} 0.4s ease-out forwards`
+                    : 'none',
+                  background: '#faf6ef',
+                }}
+              >
                 <EditorContent editor={editor} />
               </div>
             </div>
