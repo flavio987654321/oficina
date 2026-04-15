@@ -11,11 +11,8 @@
  *   - victory  : index + middle extended (V sign) → go back
  */
 
-import {
-  HandLandmarker,
-  FilesetResolver,
-  type HandLandmarkerResult,
-} from '@mediapipe/tasks-vision'
+// Types only — no runtime import at module level (avoids SSR issues)
+import type { HandLandmarker, HandLandmarkerResult } from '@mediapipe/tasks-vision'
 
 export type GestureName =
   | 'cursor'
@@ -53,6 +50,9 @@ class GestureEngine {
     if (this.running) return
     this.running = true
     this.video = videoEl
+
+    // Dynamic import keeps @mediapipe/tasks-vision out of the SSR bundle
+    const { HandLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision')
 
     const vision = await FilesetResolver.forVisionTasks(
       'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
@@ -177,5 +177,8 @@ class GestureEngine {
   }
 }
 
-// Singleton
-export const gestureEngine = new GestureEngine()
+// Singleton — only created in the browser (never during SSR/build)
+export const gestureEngine: GestureEngine =
+  typeof window !== 'undefined'
+    ? new GestureEngine()
+    : (null as unknown as GestureEngine)
