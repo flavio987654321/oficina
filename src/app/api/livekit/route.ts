@@ -9,9 +9,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 })
   }
 
+  const apiKey = process.env.LIVEKIT_API_KEY
+  const apiSecret = process.env.LIVEKIT_API_SECRET
+  if (!apiKey || !apiSecret) {
+    return NextResponse.json({ error: 'LiveKit credentials not configured' }, { status: 500 })
+  }
+
   const at = new AccessToken(
-    process.env.LIVEKIT_API_KEY!,
-    process.env.LIVEKIT_API_SECRET!,
+    apiKey,
+    apiSecret,
     { identity: username, name: username }
   )
 
