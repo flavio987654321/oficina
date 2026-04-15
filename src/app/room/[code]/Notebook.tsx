@@ -13,7 +13,14 @@ import Placeholder from '@tiptap/extension-placeholder'
 
 type Project = { id: string; name: string; created_at: string }
 
-// ── Toolbar button ──────────────────────────────────────
+// ── Page constants ───────────────────────────────────────
+const LINES_PER_PAGE = 12
+const LINE_HEIGHT    = 32
+const PAD_TOP        = 13   // aligns text baseline to ruled lines
+const PAD_BOTTOM     = 32
+const PAGE_HEIGHT    = LINES_PER_PAGE * LINE_HEIGHT + PAD_TOP + PAD_BOTTOM  // 429px
+
+// ── Toolbar button ───────────────────────────────────────
 function ToolBtn({ onClick, active, title, children }: {
   onClick: () => void; active?: boolean; title: string; children: React.ReactNode
 }) {
@@ -28,23 +35,19 @@ function ToolBtn({ onClick, active, title, children }: {
         color: active ? '#fff' : '#5a3010',
         transition: 'background 0.12s',
       }}
-    >
-      {children}
-    </button>
+    >{children}</button>
   )
 }
 
-// ── Toolbar ─────────────────────────────────────────────
+// ── Toolbar ──────────────────────────────────────────────
 function Toolbar({ editor, onImage }: { editor: any; onImage: () => void }) {
   const [, rerender] = useState(0)
-
   useEffect(() => {
     if (!editor) return
     const fn = () => rerender(n => n + 1)
     editor.on('transaction', fn)
     return () => { editor.off('transaction', fn) }
   }, [editor])
-
   if (!editor) return null
 
   function insertDate() {
@@ -59,49 +62,24 @@ function Toolbar({ editor, onImage }: { editor: any; onImage: () => void }) {
       borderBottom: '1.5px solid #c8d8ea', background: '#f0ebe0',
       alignItems: 'center', flexShrink: 0,
     }}>
-      {/* Text style */}
-      <ToolBtn onClick={() => editor.chain().focus().toggleBold().run()}
-        active={editor.isActive('bold')} title="Negrita (Ctrl+B)">B</ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleItalic().run()}
-        active={editor.isActive('italic')} title="Cursiva (Ctrl+I)"><em>I</em></ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleUnderline().run()}
-        active={editor.isActive('underline')} title="Subrayado (Ctrl+U)"><u>U</u></ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleStrike().run()}
-        active={editor.isActive('strike')} title="Tachado"><s>S</s></ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleHighlight().run()}
-        active={editor.isActive('highlight')} title="Resaltar">🖍</ToolBtn>
-
+      <ToolBtn onClick={() => editor.chain().focus().toggleBold().run()}       active={editor.isActive('bold')}    title="Negrita">B</ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleItalic().run()}     active={editor.isActive('italic')}  title="Cursiva"><em>I</em></ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleUnderline().run()}  active={editor.isActive('underline')} title="Subrayado"><u>U</u></ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleStrike().run()}     active={editor.isActive('strike')}  title="Tachado"><s>S</s></ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleHighlight().run()}  active={editor.isActive('highlight')} title="Resaltar">🖍</ToolBtn>
       <div style={{ width: 1, height: 20, background: '#c8b890', margin: '0 2px' }} />
-
-      {/* Headings */}
-      <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-        active={editor.isActive('heading', { level: 1 })} title="Título grande">H1</ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        active={editor.isActive('heading', { level: 2 })} title="Título mediano">H2</ToolBtn>
-
+      <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title="H1">H1</ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="H2">H2</ToolBtn>
       <div style={{ width: 1, height: 20, background: '#c8b890', margin: '0 2px' }} />
-
-      {/* Lists */}
-      <ToolBtn onClick={() => editor.chain().focus().toggleBulletList().run()}
-        active={editor.isActive('bulletList')} title="Lista con viñetas">• Lista</ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        active={editor.isActive('orderedList')} title="Lista numerada">1. Lista</ToolBtn>
-      <ToolBtn onClick={() => editor.chain().focus().toggleTaskList().run()}
-        active={editor.isActive('taskList')} title="Lista de tareas">✅ Tareas</ToolBtn>
-
+      <ToolBtn onClick={() => editor.chain().focus().toggleBulletList().run()}  active={editor.isActive('bulletList')}  title="Lista">• Lista</ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Numerada">1. Lista</ToolBtn>
+      <ToolBtn onClick={() => editor.chain().focus().toggleTaskList().run()}    active={editor.isActive('taskList')}    title="Tareas">✅ Tareas</ToolBtn>
       <div style={{ width: 1, height: 20, background: '#c8b890', margin: '0 2px' }} />
-
-      {/* Extras */}
-      <ToolBtn onClick={insertDate} title="Insertar fecha de hoy">📅 Fecha</ToolBtn>
-      <ToolBtn onClick={onImage} title="Insertar imagen">🖼 Imagen</ToolBtn>
+      <ToolBtn onClick={insertDate} title="Fecha">📅 Fecha</ToolBtn>
+      <ToolBtn onClick={onImage}    title="Imagen">🖼 Imagen</ToolBtn>
     </div>
   )
 }
-
-// ── Page constants ───────────────────────────────────────
-const LINE_HEIGHT   = 32
-const LINES_PER_PAGE = 22
-const PAGE_HEIGHT   = LINES_PER_PAGE * LINE_HEIGHT // 704px
 
 // ── Main component ───────────────────────────────────────
 export default function Notebook({ roomCode, userId }: { roomCode: string; userId: string }) {
@@ -110,76 +88,35 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
   const [noteId,         setNoteId]         = useState<string | null>(null)
   const [newProjectName, setNewProjectName] = useState('')
   const [saving,         setSaving]         = useState(false)
-  const saveTimeout   = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isRemote      = useRef(false)
-  const fileInputRef  = useRef<HTMLInputElement>(null)
-  const contentRef    = useRef<HTMLDivElement>(null)
+  const saveTimeout  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isRemote     = useRef(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // flip animation state
-  const [flip,        setFlip]        = useState<'idle' | 'flipping-left' | 'flipping-right'>('idle')
-  const flipRef       = useRef<'idle' | 'flipping-left' | 'flipping-right'>('idle')
-  useEffect(() => { flipRef.current = flip }, [flip])
+  // ── Multi-page state ──────────────────────────────────
+  const [pages,     setPages]     = useState<object[]>([{}])
+  const [pageIndex, setPageIndex] = useState(0)
+  const [pageFull,  setPageFull]  = useState(false)
 
-  // project list ref (for gestures)
-  const projectsRef = useRef<typeof projects>(projects)
-  useEffect(() => { projectsRef.current = projects }, [projects])
+  // slide animation
+  type SlidePhase = 'idle' | 'out' | 'in'
+  const [slidePhase, setSlidePhase] = useState<SlidePhase>('idle')
+  const [slideDir,   setSlideDir]   = useState<'left' | 'right'>('left')
+  const transitioning = useRef(false)
 
-  // page state
-  const [pageIndex,   setPageIndex]   = useState(0)
-  const [totalPages,  setTotalPages]  = useState(1)
+  // refs for stable gesture closures
   const pageIndexRef  = useRef(0)
-  const totalPagesRef = useRef(1)
-  useEffect(() => { pageIndexRef.current  = pageIndex  }, [pageIndex])
-  useEffect(() => { totalPagesRef.current = totalPages }, [totalPages])
+  const pagesRef      = useRef<object[]>([{}])
+  const editorRef     = useRef<ReturnType<typeof useEditor>>(null)
+  useEffect(() => { pageIndexRef.current = pageIndex }, [pageIndex])
+  useEffect(() => { pagesRef.current     = pages     }, [pages])
 
-  // Reset to page 1 when project changes
-  useEffect(() => { setPageIndex(0) }, [selected?.id])
+  // project list ref
+  const projectsRef   = useRef<typeof projects>(projects)
+  const selectedRef   = useRef<typeof selected>(selected)
+  useEffect(() => { projectsRef.current = projects }, [projects])
+  useEffect(() => { selectedRef.current = selected }, [selected])
 
-  // Recalculate total pages whenever content height changes
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    const ro = new ResizeObserver(() => {
-      setTotalPages(Math.max(1, Math.ceil(el.offsetHeight / PAGE_HEIGHT)))
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [selected])
-
-  // ── Navigate between PROJECTS (header arrows) ────────────
-  function navigatePage(dir: 'left' | 'right') {
-    if (flipRef.current !== 'idle') return
-    const list = projectsRef.current
-    if (!list.length) return
-    const idx = selected ? list.findIndex(p => p.id === selected.id) : -1
-    const next = dir === 'right'
-      ? list[(idx + 1) % list.length]
-      : list[(idx - 1 + list.length) % list.length]
-    if (!next || next.id === selected?.id) return
-    setSelected(next)
-    setFlip(dir === 'right' ? 'flipping-left' : 'flipping-right')
-    setTimeout(() => setFlip('idle'), 560)
-  }
-
-  // ── Navigate between PAGES within a project ──────────────
-  const goToPage = useCallback((n: number) => {
-    if (flipRef.current !== 'idle') return
-    const clamped = Math.max(0, Math.min(n, totalPagesRef.current - 1))
-    if (clamped === pageIndexRef.current) return
-    const dir = clamped > pageIndexRef.current ? 'flipping-left' : 'flipping-right'
-    setPageIndex(clamped)
-    setFlip(dir)
-    setTimeout(() => setFlip('idle'), 560)
-  }, [])
-
-  // ── Gesture: swipe navigates PAGES ───────────────────────
-  useGesture(useCallback((e) => {
-    if (e.gesture === 'swipe_left')  goToPage(pageIndexRef.current + 1)
-    if (e.gesture === 'swipe_right') goToPage(pageIndexRef.current - 1)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goToPage]), ['swipe_left', 'swipe_right'])
-
-  // ── Editor ──────────────────────────────────────────────
+  // ── Editor ────────────────────────────────────────────
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -195,8 +132,8 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
       attributes: {
         style: [
           'outline:none',
-          `min-height:${PAGE_HEIGHT}px`,
-          'padding:13px 28px 40px 76px',
+          `min-height:${PAGE_HEIGHT - PAD_TOP - PAD_BOTTOM}px`,
+          `padding:${PAD_TOP}px 28px ${PAD_BOTTOM}px 76px`,
           'font-size:15px',
           'line-height:32px',
           'color:#1a1408',
@@ -206,54 +143,69 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     },
     onUpdate: ({ editor }) => {
       if (isRemote.current) return
-      const json = JSON.stringify(editor.getJSON())
-      saveNote(json)
-      broadcastNote(json)
+      // Check if page is full
+      const prose = editor.view.dom as HTMLElement
+      setPageFull(prose.scrollHeight > PAGE_HEIGHT)
+      // Save + broadcast
+      const json = editor.getJSON()
+      const updatedPages = [...pagesRef.current]
+      updatedPages[pageIndexRef.current] = json
+      pagesRef.current = updatedPages
+      setPages(updatedPages)
+      saveNote(updatedPages)
+      broadcastNote(updatedPages, pageIndexRef.current)
     },
   })
 
-  // ── Save ────────────────────────────────────────────────
-  const saveNote = useCallback((json: string) => {
+  useEffect(() => { editorRef.current = editor }, [editor])
+
+  // ── Save ──────────────────────────────────────────────
+  const saveNote = useCallback((pagesData: object[]) => {
     setSaving(true)
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(async () => {
       if (!noteId) return
       await supabase.from('notes')
-        .update({ content: json, updated_at: new Date().toISOString() })
+        .update({ content: JSON.stringify({ pages: pagesData }), updated_at: new Date().toISOString() })
         .eq('id', noteId)
       setSaving(false)
     }, 800)
   }, [noteId])
 
-  const broadcastNote = useCallback((json: string) => {
+  const broadcastNote = useCallback((pagesData: object[], activeIdx: number) => {
     supabase.channel(`notebook:${roomCode}`).send({
       type: 'broadcast', event: 'note-updated',
-      payload: { project_id: selected?.id, content: json },
+      payload: { project_id: selectedRef.current?.id, pages: pagesData, activeIdx },
     })
-  }, [roomCode, selected])
+  }, [roomCode])
 
-  // ── Realtime ────────────────────────────────────────────
+  // ── Realtime ──────────────────────────────────────────
   useEffect(() => {
     loadProjects()
     const ch = supabase.channel(`notebook:${roomCode}`)
       .on('broadcast', { event: 'project-created' }, () => loadProjects())
       .on('broadcast', { event: 'note-updated' }, ({ payload }) => {
-        if (!editor || !selected || payload.project_id !== selected.id) return
+        if (!editor || !selectedRef.current || payload.project_id !== selectedRef.current.id) return
         isRemote.current = true
-        try {
-          editor.commands.setContent(JSON.parse(payload.content))
-        } catch {
-          editor.commands.setContent(payload.content)
+        if (payload.pages) {
+          pagesRef.current = payload.pages
+          setPages(payload.pages)
+          if (payload.activeIdx === pageIndexRef.current) {
+            try { editor.commands.setContent(payload.pages[payload.activeIdx] || {}) }
+            catch { /* ignore */ }
+          }
         }
         isRemote.current = false
       })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [roomCode, editor, selected])
+  }, [roomCode, editor])
 
-  useEffect(() => { if (selected) loadNote(selected.id) }, [selected])
+  useEffect(() => {
+    if (selected) loadNote(selected.id)
+  }, [selected])
 
-  // ── Data functions ───────────────────────────────────────
+  // ── Data ──────────────────────────────────────────────
   async function loadProjects() {
     const { data } = await supabase.from('projects').select('*')
       .eq('room_code', roomCode).order('created_at', { ascending: true })
@@ -262,26 +214,37 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
 
   async function loadNote(projectId: string) {
     if (!editor) return
+    setPageIndex(0)
+    pageIndexRef.current = 0
+    setPageFull(false)
+
     const { data } = await supabase.from('notes').select('*')
       .eq('project_id', projectId).single()
 
+    let pagesData: object[] = [{}]
     if (data) {
       setNoteId(data.id)
-      isRemote.current = true
       try {
-        editor.commands.setContent(JSON.parse(data.content || '""'))
-      } catch {
-        editor.commands.setContent(data.content || '')
-      }
-      isRemote.current = false
+        const parsed = JSON.parse(data.content || '{}')
+        if (parsed.pages && Array.isArray(parsed.pages)) {
+          pagesData = parsed.pages
+        } else if (parsed.type === 'doc') {
+          pagesData = [parsed] // legacy single-page
+        }
+      } catch { /* empty */ }
     } else {
       const { data: n } = await supabase.from('notes')
-        .insert({ project_id: projectId, content: '{}' }).select().single()
-      if (n) {
-        setNoteId(n.id)
-        editor.commands.clearContent()
-      }
+        .insert({ project_id: projectId, content: JSON.stringify({ pages: [{}] }) })
+        .select().single()
+      if (n) setNoteId(n.id)
     }
+
+    pagesRef.current = pagesData
+    setPages(pagesData)
+    isRemote.current = true
+    try { editor.commands.setContent(pagesData[0] || {}) }
+    catch { editor.commands.clearContent() }
+    isRemote.current = false
   }
 
   async function createProject(e: React.FormEvent) {
@@ -300,7 +263,6 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     }
   }
 
-  // ── Image upload (base64) ───────────────────────────────
   function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || !editor) return
@@ -312,20 +274,87 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     e.target.value = ''
   }
 
-  // ── Render ──────────────────────────────────────────────
+  // ── Page navigation ───────────────────────────────────
+  const goToPage = useCallback((n: number) => {
+    if (transitioning.current) return
+    const allPages = pagesRef.current
+    if (n < 0 || n >= allPages.length) return
+    if (n === pageIndexRef.current) return
+
+    const dir = n > pageIndexRef.current ? 'left' : 'right'
+    transitioning.current = true
+    setSlideDir(dir)
+    setSlidePhase('out')
+
+    setTimeout(() => {
+      // Switch content while off-screen
+      isRemote.current = true
+      try { editorRef.current?.commands.setContent(allPages[n] || {}) }
+      catch { editorRef.current?.commands.clearContent() }
+      isRemote.current = false
+      setPageIndex(n)
+      pageIndexRef.current = n
+      setPageFull(false)
+      setSlidePhase('in')
+
+      setTimeout(() => {
+        setSlidePhase('idle')
+        transitioning.current = false
+      }, 240)
+    }, 180)
+  }, [])
+
+  function addPage() {
+    const allPages = [...pagesRef.current]
+    // Save current page
+    allPages[pageIndexRef.current] = editorRef.current?.getJSON() ?? {}
+    const newIdx = pageIndexRef.current + 1
+    allPages.splice(newIdx, 0, {}) // insert empty page after current
+    pagesRef.current = allPages
+    setPages(allPages)
+    saveNote(allPages)
+    goToPage(newIdx)
+  }
+
+  // Project navigation (header arrows)
+  function navigateProject(dir: 'left' | 'right') {
+    if (transitioning.current) return
+    const list = projectsRef.current
+    if (!list.length) return
+    const sel = selectedRef.current
+    const idx = sel ? list.findIndex(p => p.id === sel.id) : -1
+    const next = dir === 'right'
+      ? list[(idx + 1) % list.length]
+      : list[(idx - 1 + list.length) % list.length]
+    if (!next || next.id === sel?.id) return
+    setSelected(next)
+  }
+
+  // ── Gestures: swipe navigates pages ──────────────────
+  useGesture(useCallback((e) => {
+    if (e.gesture === 'swipe_left')  goToPage(pageIndexRef.current + 1)
+    if (e.gesture === 'swipe_right') goToPage(pageIndexRef.current - 1)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goToPage]), ['swipe_left', 'swipe_right'])
+
+  // ── Slide class ───────────────────────────────────────
+  const slideClass =
+    slidePhase === 'out' ? (slideDir === 'left' ? 'nb-slide-out-left'  : 'nb-slide-out-right') :
+    slidePhase === 'in'  ? (slideDir === 'left' ? 'nb-slide-in-right'  : 'nb-slide-in-left')   : ''
+
+  // ── Render ────────────────────────────────────────────
   return (
     <div className="flex h-full overflow-hidden" style={{ fontFamily: 'Georgia, serif' }}>
 
       <style>{`
-        /* Tiptap content styles */
-        .tiptap-notebook h1 { font-size:22px; font-weight:bold; color:#2d1e0a; margin:8px 0 4px; line-height:32px }
-        .tiptap-notebook h2 { font-size:17px; font-weight:bold; color:#3d2a10; margin:6px 0 2px; line-height:32px }
-        .tiptap-notebook p  { margin:0; line-height:32px; }
+        .tiptap-notebook h1 { font-size:22px; font-weight:bold; color:#2d1e0a; margin:0; line-height:32px }
+        .tiptap-notebook h2 { font-size:17px; font-weight:bold; color:#3d2a10; margin:0; line-height:32px }
+        .tiptap-notebook p  { margin:0; line-height:32px }
         .tiptap-notebook ul { padding-left:24px; margin:0 }
         .tiptap-notebook ol { padding-left:24px; margin:0 }
         .tiptap-notebook li { line-height:32px }
         .tiptap-notebook mark { background:#fde047; border-radius:2px; padding:0 2px }
-        .tiptap-notebook img { max-width:100%; border-radius:6px; margin:8px 0; box-shadow:0 2px 8px rgba(0,0,0,0.15) }
+        .tiptap-notebook img { max-width:100%; border-radius:6px; margin:4px 0 }
         .tiptap-notebook ul[data-type="taskList"] { list-style:none; padding-left:4px }
         .tiptap-notebook ul[data-type="taskList"] li { display:flex; align-items:flex-start; gap:8px; line-height:32px }
         .tiptap-notebook ul[data-type="taskList"] li input[type="checkbox"] { margin-top:8px; width:15px; height:15px; cursor:pointer; accent-color:#8b4513 }
@@ -338,11 +367,10 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
           background-image: repeating-linear-gradient(
             transparent, transparent 31px, #c8d8ea 31px, #c8d8ea 32px
           );
-          background-position-y: 6px;
+          background-position-y: ${PAD_TOP - 1}px;
         }
       `}</style>
 
-      {/* Hidden file input */}
       <input ref={fileInputRef} type="file" accept="image/*"
         style={{ display: 'none' }} onChange={handleImageFile} />
 
@@ -358,20 +386,17 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
             Proyectos
           </p>
           <form onSubmit={createProject} style={{ display: 'flex', gap: 6 }}>
-            <input type="text" value={newProjectName}
-              onChange={e => setNewProjectName(e.target.value)}
+            <input type="text" value={newProjectName} onChange={e => setNewProjectName(e.target.value)}
               placeholder="Nuevo proyecto..."
               style={{
                 flex: 1, background: 'rgba(255,220,150,0.08)', color: '#f0dfc0',
                 borderTop: 'none', borderRight: 'none', borderBottom: '1px solid rgba(212,165,90,0.25)', borderLeft: 'none',
-                borderRadius: 6, padding: '5px 8px', fontSize: 12,
-                fontFamily: 'sans-serif', outline: 'none', minWidth: 0,
+                borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'sans-serif', outline: 'none', minWidth: 0,
               }} />
             <button type="submit" style={{
               background: '#8b4513', color: '#f5e6d0',
-              borderTop: 'none', borderRight: 'none', borderBottom: 'none', borderLeft: 'none',
-              borderRadius: 6, padding: '5px 10px', fontSize: 14,
-              fontWeight: 'bold', cursor: 'pointer', fontFamily: 'sans-serif',
+              border: 'none', borderRadius: 6, padding: '5px 10px',
+              fontSize: 14, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'sans-serif',
             }}>+</button>
           </form>
         </div>
@@ -387,7 +412,7 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
               padding: '9px 10px 9px 14px', marginBottom: 2, borderRadius: 6,
               cursor: 'pointer', transition: 'all 0.15s',
               background: selected?.id === p.id ? 'rgba(212,165,90,0.18)' : 'transparent',
-              borderTop: 'none', borderRight: 'none', borderBottom: 'none',
+              border: 'none',
               borderLeft: `3px solid ${selected?.id === p.id ? '#c9935a' : 'transparent'}`,
               color: selected?.id === p.id ? '#f0dfc0' : '#9a7050',
               fontSize: 13, fontFamily: 'sans-serif',
@@ -417,62 +442,59 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
             width: 18, height: 18, borderRadius: '50%',
             border: '2.5px solid #7a6840',
             background: 'radial-gradient(circle at 35% 35%, #e0d0a0, #9a8850)',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.2)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
             flexShrink: 0,
           }} />
         ))}
       </div>
 
-      {/* ── Page ── */}
+      {/* ── Page area ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#faf6ef', overflow: 'hidden', position: 'relative' }}>
 
         {/* Left margin red line */}
         <div style={{
           position: 'absolute', top: 0, bottom: 0, left: 68,
-          width: 1.5, background: '#e87878', opacity: 0.55, pointerEvents: 'none',
+          width: 1.5, background: '#e87878', opacity: 0.55, pointerEvents: 'none', zIndex: 1,
         }} />
 
         {/* Page header */}
         <div style={{
           padding: '10px 20px 8px 76px', borderBottom: '1.5px solid #c8d8ea',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, zIndex: 2,
         }}>
           {selected ? (
             <div>
               <p style={{ fontSize: 10, color: '#a09070', fontFamily: 'sans-serif', letterSpacing: 1, textTransform: 'uppercase' }}>Proyecto</p>
-              <p style={{ fontSize: 17, color: '#2d2010', fontWeight: 'bold', lineHeight: 1.3 }}>{selected.name}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <p style={{ fontSize: 17, color: '#2d2010', fontWeight: 'bold', lineHeight: 1.3 }}>{selected.name}</p>
+                {projects.length > 1 && (
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    <button onClick={() => navigateProject('left')} style={{
+                      background: 'rgba(0,0,0,0.06)', border: '1px solid #d0c8b0', borderRadius: 4,
+                      width: 22, height: 22, cursor: 'pointer', fontSize: 12,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7a6040',
+                    }}>‹</button>
+                    <button onClick={() => navigateProject('right')} style={{
+                      background: 'rgba(0,0,0,0.06)', border: '1px solid #d0c8b0', borderRadius: 4,
+                      width: 22, height: 22, cursor: 'pointer', fontSize: 12,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7a6040',
+                    }}>›</button>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
-            <p style={{ fontSize: 14, color: '#c0b090', fontStyle: 'italic' }}>Seleccioná un proyecto</p>
+            <p style={{ fontSize: 14, color: '#c0b090', fontStyle: 'italic' }}>Seleccioná o creá un proyecto</p>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: '#b0a080', fontFamily: 'sans-serif' }}>
-              {saving ? '✎ Guardando...' : selected ? '✓ Guardado' : ''}
-            </span>
-            {/* Page navigation arrows */}
-            {projects.length > 1 && (
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button onClick={() => navigatePage('left')} disabled={flip !== 'idle'} style={{
-                  background: 'rgba(0,0,0,0.06)', border: '1px solid #d0c8b0',
-                  borderRadius: 6, width: 28, height: 28, cursor: 'pointer',
-                  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#7a6040', opacity: flip !== 'idle' ? 0.4 : 1,
-                }}>‹</button>
-                <button onClick={() => navigatePage('right')} disabled={flip !== 'idle'} style={{
-                  background: 'rgba(0,0,0,0.06)', border: '1px solid #d0c8b0',
-                  borderRadius: 6, width: 28, height: 28, cursor: 'pointer',
-                  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#7a6040', opacity: flip !== 'idle' ? 0.4 : 1,
-                }}>›</button>
-              </div>
-            )}
-          </div>
+          <span style={{ fontSize: 11, color: '#b0a080', fontFamily: 'sans-serif' }}>
+            {saving ? '✎ Guardando...' : selected ? '✓ Guardado' : ''}
+          </span>
         </div>
 
-        {/* Toolbar (only when project selected) */}
+        {/* Toolbar */}
         {selected && <Toolbar editor={editor} onImage={() => fileInputRef.current?.click()} />}
 
-        {/* Editor */}
+        {/* ── Page viewport (fixed height = 12 lines) ── */}
         {!selected ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ textAlign: 'center', color: '#c8b890' }}>
@@ -482,43 +504,34 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
           </div>
         ) : (
           <>
-            {/* Fixed-height page viewport */}
-            <div className="tiptap-notebook" style={{
+            <div style={{
               flexShrink: 0, height: PAGE_HEIGHT,
               overflow: 'hidden', position: 'relative',
             }}>
-              {/* Scrolling content — translateY reveals current page */}
-              <div ref={contentRef} style={{
-                transform: `translateY(-${pageIndex * PAGE_HEIGHT}px)`,
-              }}>
+              <div className={`tiptap-notebook ${slideClass}`} style={{ height: '100%' }}>
                 <EditorContent editor={editor} />
               </div>
-
-              {/* Page flip overlay */}
-              {flip !== 'idle' && (
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  pointerEvents: 'none', zIndex: 20,
-                  transformOrigin: flip === 'flipping-left' ? 'right center' : 'left center',
-                  animation: `${flip === 'flipping-left' ? 'pageFlipLeft' : 'pageFlipRight'} 0.56s ease-in-out forwards`,
-                  background: `repeating-linear-gradient(#faf6ef 0px, #faf6ef 31px, #c8d8ea 31px, #c8d8ea 32px)`,
-                  backgroundPositionY: '6px',
-                }}>
-                  <div style={{ position: 'absolute', top: 0, bottom: 0, left: 68, width: 1.5, background: '#e87878', opacity: 0.55 }} />
-                  <div style={{
-                    position: 'absolute', top: 0, bottom: 0,
-                    right: flip === 'flipping-left' ? 0 : 'auto',
-                    left: flip === 'flipping-right' ? 0 : 'auto',
-                    width: 40,
-                    background: flip === 'flipping-left'
-                      ? 'linear-gradient(to right, transparent, rgba(0,0,0,0.12))'
-                      : 'linear-gradient(to left, transparent, rgba(0,0,0,0.12))',
-                  }} />
-                </div>
-              )}
             </div>
 
-            {/* Page footer — pagination */}
+            {/* Page full indicator */}
+            {pageFull && (
+              <div style={{
+                background: 'rgba(220,150,50,0.12)', borderTop: '1px solid rgba(201,147,90,0.3)',
+                padding: '6px 76px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+              }}>
+                <span style={{ fontSize: 12, color: '#a07030', fontFamily: 'sans-serif' }}>
+                  📄 Página llena
+                </span>
+                <button onClick={addPage} style={{
+                  background: '#8b4513', color: '#fde68a', border: 'none', borderRadius: 6,
+                  padding: '3px 12px', fontSize: 12, fontFamily: 'sans-serif', fontWeight: 700, cursor: 'pointer',
+                }}>
+                  + Nueva página →
+                </button>
+              </div>
+            )}
+
+            {/* ── Page footer ── */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               gap: 10, padding: '7px 20px', flexShrink: 0,
@@ -526,29 +539,41 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
             }}>
               <button
                 onClick={() => goToPage(pageIndex - 1)}
-                disabled={pageIndex === 0 || flip !== 'idle'}
+                disabled={pageIndex === 0 || transitioning.current}
                 style={{
                   background: 'none', border: '1px solid #c8b890', borderRadius: 6,
-                  width: 26, height: 26, cursor: pageIndex === 0 ? 'default' : 'pointer',
+                  width: 28, height: 28, cursor: pageIndex === 0 ? 'default' : 'pointer',
                   color: '#7a6040', opacity: pageIndex === 0 ? 0.25 : 1,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
                 }}
               >‹</button>
 
-              <span style={{ fontSize: 12, color: '#9a8060', fontFamily: 'sans-serif', minWidth: 70, textAlign: 'center' }}>
-                Página {pageIndex + 1} de {totalPages}
+              <span style={{ fontSize: 12, color: '#9a8060', fontFamily: 'sans-serif', minWidth: 80, textAlign: 'center' }}>
+                Hoja {pageIndex + 1} de {pages.length}
               </span>
 
               <button
                 onClick={() => goToPage(pageIndex + 1)}
-                disabled={pageIndex >= totalPages - 1 || flip !== 'idle'}
+                disabled={pageIndex >= pages.length - 1 || transitioning.current}
                 style={{
                   background: 'none', border: '1px solid #c8b890', borderRadius: 6,
-                  width: 26, height: 26, cursor: pageIndex >= totalPages - 1 ? 'default' : 'pointer',
-                  color: '#7a6040', opacity: pageIndex >= totalPages - 1 ? 0.25 : 1,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
+                  width: 28, height: 28, cursor: pageIndex >= pages.length - 1 ? 'default' : 'pointer',
+                  color: '#7a6040', opacity: pageIndex >= pages.length - 1 ? 0.25 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
                 }}
               >›</button>
+
+              <div style={{ width: 1, height: 16, background: '#d0c8b0', margin: '0 4px' }} />
+
+              <button
+                onClick={addPage}
+                title="Agregar hoja"
+                style={{
+                  background: 'none', border: '1px solid #c8b890', borderRadius: 6,
+                  padding: '0 10px', height: 28, cursor: 'pointer',
+                  color: '#8b4513', fontSize: 12, fontFamily: 'sans-serif', fontWeight: 600,
+                }}
+              >+ Hoja</button>
             </div>
           </>
         )}

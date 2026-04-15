@@ -36,17 +36,24 @@ body {
   100% { opacity: 0; }
 }
 
-/* Notebook page flip animations */
-@keyframes pageFlipLeft {
-  0%   { transform: perspective(1400px) rotateY(0deg);     opacity: 1; }
-  45%  { transform: perspective(1400px) rotateY(-90deg);   opacity: 0.6; }
-  46%  { transform: perspective(1400px) rotateY(-91deg);   opacity: 0; }
-  100% { transform: perspective(1400px) rotateY(-180deg);  opacity: 0; }
+/* Notebook page slide animations */
+@keyframes nbSlideOutLeft {
+  from { transform: translateX(0);     opacity: 1; }
+  to   { transform: translateX(-100%); opacity: 0; }
 }
-
-@keyframes pageFlipRight {
-  0%   { transform: perspective(1400px) rotateY(0deg);    opacity: 1; }
-  45%  { transform: perspective(1400px) rotateY(90deg);   opacity: 0.6; }
-  46%  { transform: perspective(1400px) rotateY(91deg);   opacity: 0; }
-  100% { transform: perspective(1400px) rotateY(180deg);  opacity: 0; }
+@keyframes nbSlideOutRight {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(100%); opacity: 0; }
 }
+@keyframes nbSlideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes nbSlideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+.nb-slide-out-left  { animation: nbSlideOutLeft  0.18s ease-in  forwards; }
+.nb-slide-out-right { animation: nbSlideOutRight 0.18s ease-in  forwards; }
+.nb-slide-in-right  { animation: nbSlideInRight  0.22s ease-out forwards; }
+.nb-slide-in-left   { animation: nbSlideInLeft   0.22s ease-out forwards; }
