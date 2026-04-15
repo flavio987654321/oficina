@@ -295,7 +295,7 @@ export default function RoomPage() {
         <LiveKitRoom
           token={token}
           serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-          connect={true}
+          connect={!!token}
           video={false}
           audio={false}
           style={{ height: '100%' }}
