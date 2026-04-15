@@ -98,6 +98,11 @@ function Toolbar({ editor, onImage }: { editor: any; onImage: () => void }) {
   )
 }
 
+// ── Page constants ───────────────────────────────────────
+const LINE_HEIGHT   = 32
+const LINES_PER_PAGE = 22
+const PAGE_HEIGHT   = LINES_PER_PAGE * LINE_HEIGHT // 704px
+
 // ── Main component ───────────────────────────────────────
 export default function Notebook({ roomCode, userId }: { roomCode: string; userId: string }) {
   const [projects,       setProjects]       = useState<Project[]>([])
@@ -108,38 +113,71 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
   const saveTimeout   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isRemote      = useRef(false)
   const fileInputRef  = useRef<HTMLInputElement>(null)
-  // flip: 'idle' | 'flipping-left' | 'flipping-right'
+  const contentRef    = useRef<HTMLDivElement>(null)
+
+  // flip animation state
   const [flip,        setFlip]        = useState<'idle' | 'flipping-left' | 'flipping-right'>('idle')
+  const flipRef       = useRef<'idle' | 'flipping-left' | 'flipping-right'>('idle')
+  useEffect(() => { flipRef.current = flip }, [flip])
+
+  // project list ref (for gestures)
   const projectsRef = useRef<typeof projects>(projects)
   useEffect(() => { projectsRef.current = projects }, [projects])
 
-  // ── Navigate with page-turn animation ────────────────────
+  // page state
+  const [pageIndex,   setPageIndex]   = useState(0)
+  const [totalPages,  setTotalPages]  = useState(1)
+  const pageIndexRef  = useRef(0)
+  const totalPagesRef = useRef(1)
+  useEffect(() => { pageIndexRef.current  = pageIndex  }, [pageIndex])
+  useEffect(() => { totalPagesRef.current = totalPages }, [totalPages])
+
+  // Reset to page 1 when project changes
+  useEffect(() => { setPageIndex(0) }, [selected?.id])
+
+  // Recalculate total pages whenever content height changes
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      setTotalPages(Math.max(1, Math.ceil(el.offsetHeight / PAGE_HEIGHT)))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [selected])
+
+  // ── Navigate between PROJECTS (header arrows) ────────────
   function navigatePage(dir: 'left' | 'right') {
-    if (flip !== 'idle') return
+    if (flipRef.current !== 'idle') return
     const list = projectsRef.current
     if (!list.length) return
     const idx = selected ? list.findIndex(p => p.id === selected.id) : -1
-
     const next = dir === 'right'
       ? list[(idx + 1) % list.length]
       : list[(idx - 1 + list.length) % list.length]
-
     if (!next || next.id === selected?.id) return
-
-    // Switch content immediately (overlay covers the transition)
     setSelected(next)
-    // Start flip overlay animation
     setFlip(dir === 'right' ? 'flipping-left' : 'flipping-right')
-    // Remove overlay after animation completes
     setTimeout(() => setFlip('idle'), 560)
   }
 
-  // ── Gesture: swipe to navigate ───────────────────────────
+  // ── Navigate between PAGES within a project ──────────────
+  const goToPage = useCallback((n: number) => {
+    if (flipRef.current !== 'idle') return
+    const clamped = Math.max(0, Math.min(n, totalPagesRef.current - 1))
+    if (clamped === pageIndexRef.current) return
+    const dir = clamped > pageIndexRef.current ? 'flipping-left' : 'flipping-right'
+    setPageIndex(clamped)
+    setFlip(dir)
+    setTimeout(() => setFlip('idle'), 560)
+  }, [])
+
+  // ── Gesture: swipe navigates PAGES ───────────────────────
   useGesture(useCallback((e) => {
-    if (e.gesture === 'swipe_left')  navigatePage('right')
-    if (e.gesture === 'swipe_right') navigatePage('left')
+    if (e.gesture === 'swipe_left')  goToPage(pageIndexRef.current + 1)
+    if (e.gesture === 'swipe_right') goToPage(pageIndexRef.current - 1)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []), ['swipe_left', 'swipe_right'])
+  }, [goToPage]), ['swipe_left', 'swipe_right'])
 
   // ── Editor ──────────────────────────────────────────────
   const editor = useEditor({
@@ -157,8 +195,8 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
       attributes: {
         style: [
           'outline:none',
-          'min-height:100%',
-          'padding:8px 28px 40px 76px',
+          `min-height:${PAGE_HEIGHT}px`,
+          'padding:13px 28px 40px 76px',
           'font-size:15px',
           'line-height:32px',
           'color:#1a1408',
@@ -443,41 +481,76 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
             </div>
           </div>
         ) : (
-          <div className="tiptap-notebook" style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
-            <EditorContent editor={editor} style={{ height: '100%' }} />
-
-            {/* Page flip overlay */}
-            {flip !== 'idle' && (
-              <div style={{
-                position: 'absolute', inset: 0,
-                pointerEvents: 'none', zIndex: 20,
-                transformOrigin: flip === 'flipping-left' ? 'right center' : 'left center',
-                animation: `${flip === 'flipping-left' ? 'pageFlipLeft' : 'pageFlipRight'} 0.56s ease-in-out forwards`,
-                background: `
-                  repeating-linear-gradient(
-                    #faf6ef 0px, #faf6ef 31px,
-                    #c8d8ea 31px, #c8d8ea 32px
-                  )`,
-                backgroundPositionY: '6px',
+          <>
+            {/* Fixed-height page viewport */}
+            <div className="tiptap-notebook" style={{
+              flexShrink: 0, height: PAGE_HEIGHT,
+              overflow: 'hidden', position: 'relative',
+            }}>
+              {/* Scrolling content — translateY reveals current page */}
+              <div ref={contentRef} style={{
+                transform: `translateY(-${pageIndex * PAGE_HEIGHT}px)`,
               }}>
-                {/* Red margin line on overlay */}
-                <div style={{
-                  position: 'absolute', top: 0, bottom: 0, left: 68,
-                  width: 1.5, background: '#e87878', opacity: 0.55,
-                }} />
-                {/* Shadow on fold edge */}
-                <div style={{
-                  position: 'absolute', top: 0, bottom: 0,
-                  right: flip === 'flipping-left' ? 0 : 'auto',
-                  left: flip === 'flipping-right' ? 0 : 'auto',
-                  width: 40,
-                  background: flip === 'flipping-left'
-                    ? 'linear-gradient(to right, transparent, rgba(0,0,0,0.12))'
-                    : 'linear-gradient(to left, transparent, rgba(0,0,0,0.12))',
-                }} />
+                <EditorContent editor={editor} />
               </div>
-            )}
-          </div>
+
+              {/* Page flip overlay */}
+              {flip !== 'idle' && (
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  pointerEvents: 'none', zIndex: 20,
+                  transformOrigin: flip === 'flipping-left' ? 'right center' : 'left center',
+                  animation: `${flip === 'flipping-left' ? 'pageFlipLeft' : 'pageFlipRight'} 0.56s ease-in-out forwards`,
+                  background: `repeating-linear-gradient(#faf6ef 0px, #faf6ef 31px, #c8d8ea 31px, #c8d8ea 32px)`,
+                  backgroundPositionY: '6px',
+                }}>
+                  <div style={{ position: 'absolute', top: 0, bottom: 0, left: 68, width: 1.5, background: '#e87878', opacity: 0.55 }} />
+                  <div style={{
+                    position: 'absolute', top: 0, bottom: 0,
+                    right: flip === 'flipping-left' ? 0 : 'auto',
+                    left: flip === 'flipping-right' ? 0 : 'auto',
+                    width: 40,
+                    background: flip === 'flipping-left'
+                      ? 'linear-gradient(to right, transparent, rgba(0,0,0,0.12))'
+                      : 'linear-gradient(to left, transparent, rgba(0,0,0,0.12))',
+                  }} />
+                </div>
+              )}
+            </div>
+
+            {/* Page footer — pagination */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 10, padding: '7px 20px', flexShrink: 0,
+              borderTop: '1.5px solid #c8d8ea', background: '#f0ebe0',
+            }}>
+              <button
+                onClick={() => goToPage(pageIndex - 1)}
+                disabled={pageIndex === 0 || flip !== 'idle'}
+                style={{
+                  background: 'none', border: '1px solid #c8b890', borderRadius: 6,
+                  width: 26, height: 26, cursor: pageIndex === 0 ? 'default' : 'pointer',
+                  color: '#7a6040', opacity: pageIndex === 0 ? 0.25 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
+                }}
+              >‹</button>
+
+              <span style={{ fontSize: 12, color: '#9a8060', fontFamily: 'sans-serif', minWidth: 70, textAlign: 'center' }}>
+                Página {pageIndex + 1} de {totalPages}
+              </span>
+
+              <button
+                onClick={() => goToPage(pageIndex + 1)}
+                disabled={pageIndex >= totalPages - 1 || flip !== 'idle'}
+                style={{
+                  background: 'none', border: '1px solid #c8b890', borderRadius: 6,
+                  width: 26, height: 26, cursor: pageIndex >= totalPages - 1 ? 'default' : 'pointer',
+                  color: '#7a6040', opacity: pageIndex >= totalPages - 1 ? 0.25 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
+                }}
+              >›</button>
+            </div>
+          </>
         )}
 
         {/* Page curl */}
