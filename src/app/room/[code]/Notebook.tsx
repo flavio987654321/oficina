@@ -10,7 +10,6 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
-import Underline from '@tiptap/extension-underline'
 
 type Project = { id: string; name: string; created_at: string }
 
@@ -147,7 +146,6 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     immediatelyRender: false,
     extensions: [
       StarterKit,
-      Underline,
       Highlight.configure({ multicolor: false }),
       TaskList,
       TaskItem.configure({ nested: true }),
