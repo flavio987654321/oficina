@@ -11,6 +11,7 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
+import Underline from '@tiptap/extension-underline'
 
 type Project = { id: string; name: string; created_at: string }
 
@@ -83,7 +84,11 @@ function Toolbar({ editor, onImage }: { editor: any; onImage: () => void }) {
 }
 
 // ── Main component ───────────────────────────────────────
-export default function Notebook({ roomCode, userId }: { roomCode: string; userId: string }) {
+export default function Notebook({ roomCode, userId, onProjectChange }: {
+  roomCode: string
+  userId: string
+  onProjectChange?: (name: string | null) => void
+}) {
   const [projects,       setProjects]       = useState<Project[]>([])
   const [selected,       setSelected]       = useState<Project | null>(null)
   const [noteId,         setNoteId]         = useState<string | null>(null)
@@ -131,6 +136,7 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
       TaskItem.configure({ nested: true }),
       Image.configure({ inline: false, allowBase64: true }),
       Placeholder.configure({ placeholder: 'Empezá a escribir acá...' }),
+      Underline,
     ],
     content: '',
     editorProps: {
@@ -217,6 +223,11 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     if (selected) loadNote(selected.id)
   }, [selected])
 
+  // Notificar al padre qué proyecto está activo (para contexto de Jarvis)
+  useEffect(() => {
+    onProjectChange?.(selected?.name ?? null)
+  }, [selected, onProjectChange])
+
   // ── Data ──────────────────────────────────────────────
   async function loadProjects() {
     const { data } = await supabase.from('projects').select('*')
@@ -259,20 +270,26 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     isRemote.current = false
   }
 
-  async function createProject(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newProjectName.trim()) return
+  const createProjectByName = useCallback(async (name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
     const { data } = await supabase.from('projects')
-      .insert({ name: newProjectName.trim(), room_code: roomCode, created_by: userId })
+      .insert({ name: trimmed, room_code: roomCode, created_by: userId })
       .select().single()
     if (data) {
-      setNewProjectName('')
       await loadProjects()
       setSelected(data)
       supabase.channel(`notebook:${roomCode}`).send({
         type: 'broadcast', event: 'project-created', payload: {},
       })
     }
+  }, [roomCode, userId, loadProjects])
+
+  async function createProject(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newProjectName.trim()) return
+    await createProjectByName(newProjectName)
+    setNewProjectName('')
   }
 
   function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -366,8 +383,22 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
       return true
     }
 
+    if (command.action === 'create_project' && command.projectName) {
+      await createProjectByName(command.projectName)
+      return true
+    }
+
+    // Modo conversacional: Jarvis generó texto para insertar en el cuaderno
+    if (command.action === 'converse' && command.insertText && editorRef.current) {
+      const ed = editorRef.current
+      if (ed && selectedRef.current) {
+        ed.chain().focus().insertContent(command.insertText + '\n').run()
+        return true
+      }
+    }
+
     return false
-  }, [goToPage]))
+  }, [goToPage, createProjectByName]))
 
   // ── Render ────────────────────────────────────────────
   return (

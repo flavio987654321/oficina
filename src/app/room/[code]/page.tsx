@@ -35,6 +35,7 @@ export default function RoomPage() {
   const [compactHeader, setCompactHeader] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [panelContent, setPanelContent] = useState<JarvisPanel | null>(null)
+  const [currentProjectName, setCurrentProjectName] = useState<string | null>(null)
   const closePanelRef = useRef<(() => void) | null>(null)
 
   const isLeader = !!userId && !!leaderUserId && userId === leaderUserId
@@ -234,6 +235,7 @@ export default function RoomPage() {
               panelContent,
               gesturesOn: gestureOn,
               isLeader,
+              currentProjectName,
             }}
           />
 
@@ -743,6 +745,7 @@ export default function RoomPage() {
             onPanelOpen={(closeFn) => { setPanelOpen(true);  closePanelRef.current = closeFn }}
             onPanelClose={() =>       { setPanelOpen(false); closePanelRef.current = null  }}
             onPanelChange={(panel) => setPanelContent(panel)}
+            onProjectChange={(name) => setCurrentProjectName(name)}
           />
         </LiveKitRoom>
 

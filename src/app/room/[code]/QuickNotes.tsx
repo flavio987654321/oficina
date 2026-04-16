@@ -331,9 +331,17 @@ export default function QuickNotes({ roomCode, userName }: { roomCode: string; u
     }, 800)
   }
 
-  // Stable ref so gesture closure can call persist without going stale
-  const persistRef = useRef(persist)
-  useEffect(() => { persistRef.current = persist })
+  // Stable refs so gesture closure and Jarvis handler don't go stale
+  const persistRef   = useRef(persist)
+  const addNoteRef   = useRef(addNote)
+  const deleteNoteRef = useRef(deleteNote)
+  const editingRef2  = useRef(editing)
+  const notesStateRef = useRef(notes)
+  useEffect(() => { persistRef.current   = persist    })
+  useEffect(() => { addNoteRef.current   = addNote    })
+  useEffect(() => { deleteNoteRef.current = deleteNote })
+  useEffect(() => { editingRef2.current  = editing    })
+  useEffect(() => { notesStateRef.current = notes      })
 
   function addNote() {
     const newNote: StickyNote = {
@@ -358,19 +366,20 @@ export default function QuickNotes({ roomCode, userName }: { roomCode: string; u
 
   useJarvisHandler(useCallback(async (command) => {
     if (command.action === 'add_note') {
-      addNote()
+      addNoteRef.current()
       return true
     }
 
     if (command.action === 'delete_note') {
-      const targetId = editing?.id ?? notes[notes.length - 1]?.id
+      const targetId = editingRef2.current?.id ?? notesStateRef.current[notesStateRef.current.length - 1]?.id
       if (!targetId) return true
-      deleteNote(targetId)
+      deleteNoteRef.current(targetId)
       return true
     }
 
     return false
-  }, [addNote, deleteNote, editing, notes]))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []))
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>

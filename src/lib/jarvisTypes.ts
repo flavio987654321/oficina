@@ -12,10 +12,13 @@ export type JarvisAction =
   | 'set_gestures'
   | 'set_camera'
   | 'set_microphone'
+  | 'mute_participant'
   | 'next_page'
   | 'previous_page'
   | 'add_note'
   | 'delete_note'
+  | 'create_project'
+  | 'converse'
   | 'open_chat'
   | 'close_chat'
   | 'unknown'
@@ -29,6 +32,8 @@ export type JarvisContext = {
   panelContent?: JarvisPanel | null
   gesturesOn?: boolean
   isLeader?: boolean
+  /** Nombre del proyecto actualmente abierto en el cuaderno */
+  currentProjectName?: string | null
 }
 
 export type JarvisCommand = {
@@ -37,6 +42,10 @@ export type JarvisCommand = {
   state: JarvisToggleState | null
   roomName: string | null
   roomCode: string | null
+  projectName: string | null
+  participantName: string | null
+  /** Texto que Jarvis quiere insertar en el editor activo (cuaderno o nota) */
+  insertText: string | null
   spokenReply: string
 }
 

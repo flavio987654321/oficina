@@ -15,6 +15,18 @@ function extractRoomName(raw: string) {
   return match?.[1]?.trim() ?? null
 }
 
+function extractProjectName(raw: string) {
+  const match = raw.match(/(?:proyecto|project)(?:\s+llamado|\s+que\s+se\s+llame|\s+con\s+nombre|\s+de)?\s+(.+)$/i)
+  return match?.[1]?.trim() ?? null
+}
+
+function extractParticipantName(raw: string) {
+  // "silenciá a Juan", "muteá a María García", "apagá el micro de Pedro"
+  const matchA  = raw.match(/\b(?:a|al)\s+([A-Za-zÀ-ÿ][\w\s]{1,30}?)(?:\s*$|(?=\s*,|\s*\.))/i)
+  const matchDe = raw.match(/\bde\s+([A-Za-zÀ-ÿ][\w\s]{1,30}?)(?:\s*$|(?=\s*,|\s*\.))/i)
+  return (matchA?.[1] ?? matchDe?.[1])?.trim() ?? null
+}
+
 function detectPanel(text: string): JarvisPanel | null {
   if (text.includes('cuaderno') || text.includes('proyecto')) return 'cuaderno'
   if (text.includes('pizarra')) return 'pizarra'
@@ -29,151 +41,134 @@ function detectState(text: string): JarvisToggleState | null {
   return null
 }
 
+// Shorthand to build a full JarvisCommand with all null defaults
+function cmd(partial: Partial<JarvisCommand> & Pick<JarvisCommand, 'action' | 'spokenReply'>): JarvisCommand {
+  return {
+    panel: null,
+    state: null,
+    roomName: null,
+    roomCode: null,
+    projectName: null,
+    participantName: null,
+    insertText: null,
+    ...partial,
+  }
+}
+
 export function parseJarvisFallback(rawUtterance: string, context: JarvisContext): JarvisCommand {
   const utterance = normalize(rawUtterance)
   const panel = detectPanel(utterance)
   const state = detectState(utterance)
 
+  // ── Dashboard: crear sala ───────────────────────────────
   if ((utterance.includes('crear sala') || utterance.includes('creame una sala') || utterance.includes('crea una sala')) && context.route === 'dashboard') {
     const roomName = extractRoomName(rawUtterance) ?? `Sala de ${context.userName ?? 'equipo'}`
-    return {
-      action: 'create_room',
-      panel: null,
-      state: null,
-      roomName,
-      roomCode: null,
-      spokenReply: `Listo, voy creando la sala ${roomName}.`,
-    }
+    return cmd({ action: 'create_room', roomName, spokenReply: `Listo, voy creando la sala ${roomName}.` })
   }
 
+  // ── Dashboard: unirse a sala ────────────────────────────
   if ((utterance.includes('unirme a la sala') || utterance.includes('unirse a la sala') || utterance.includes('entrar a la sala')) && context.route === 'dashboard') {
     const codeMatch = rawUtterance.match(/\b([A-Z0-9]{6})\b/i)
-    return {
+    return cmd({
       action: 'join_room',
-      panel: null,
-      state: null,
-      roomName: null,
       roomCode: codeMatch?.[1]?.toUpperCase() ?? null,
       spokenReply: codeMatch?.[1]
         ? `Voy entrando a la sala ${codeMatch[1].toUpperCase()}.`
         : 'Decime también el código de la sala para entrar.',
-    }
+    })
   }
 
+  // ── Abrir panel ─────────────────────────────────────────
   if (panel && /(abr[ií]|abre|abrime|abrirme|mostra|mostrar)/.test(utterance)) {
-    const spokenReply = panel === 'pizarra'
-      ? 'Abro la pizarra.'
-      : panel === 'cuaderno'
-        ? 'Abro el cuaderno.'
-        : 'Abro el pizarrón de notas.'
-    return { action: 'open_panel', panel, state: null, roomName: null, roomCode: null, spokenReply }
+    const spokenReply = panel === 'pizarra' ? 'Abro la pizarra.' : panel === 'cuaderno' ? 'Abro el cuaderno.' : 'Abro el pizarrón de notas.'
+    return cmd({ action: 'open_panel', panel, spokenReply })
   }
 
-  if (/(cerra|cerra|cerrar|oculta|ocultar|salir)/.test(utterance) && context.route === 'room') {
-    return {
-      action: 'close_panel',
-      panel: null,
-      state: null,
-      roomName: null,
-      roomCode: null,
-      spokenReply: 'Cierro el panel.',
-    }
+  // ── Cerrar panel / volver a la mesa ─────────────────────
+  if (/(cerra|cerrar|oculta|ocultar|salir|volver|volve|volvete|regresa|regrese|ir a la mesa|la mesa|volver a mesa)/.test(utterance) && context.route === 'room') {
+    return cmd({ action: 'close_panel', spokenReply: 'Vuelvo a la mesa.' })
   }
 
+  // ── Gestos ──────────────────────────────────────────────
   if ((utterance.includes('gesto') || utterance.includes('gestos')) && context.route === 'room') {
-    return {
+    return cmd({
       action: 'set_gestures',
-      panel: null,
       state,
-      roomName: null,
-      roomCode: null,
       spokenReply: state === 'off' ? 'Desactivo los gestos.' : state === 'on' ? 'Activo los gestos.' : 'Cambio el estado de los gestos.',
-    }
+    })
   }
 
-  if (utterance.includes('camara') && context.route === 'room') {
-    return {
+  // ── Silenciar a OTRO participante (detectar " a " = target externo) ──
+  if (/(silencia|mutea|apaga|desactiva)/.test(utterance) && utterance.includes(' a ') && context.route === 'room') {
+    const participantName = extractParticipantName(rawUtterance)
+    return cmd({
+      action: 'mute_participant',
+      state: 'off',
+      participantName,
+      spokenReply: participantName
+        ? `Silencio a ${participantName} en tu dispositivo.`
+        : '¿A quién querés silenciar? Decime el nombre.',
+    })
+  }
+
+  // ── Cámara propia ───────────────────────────────────────
+  if ((utterance.includes('camara') || utterance.includes('video') || utterance.includes('cam ') || utterance.endsWith('cam')) && context.route === 'room') {
+    const camState = state ?? (/(apaga|apagar|desactiva|saca|quita|cierra)/.test(utterance) ? 'off' : /(prende|prender|activa|activar|muestra|mostrar|pone|poner)/.test(utterance) ? 'on' : null)
+    return cmd({
       action: 'set_camera',
-      panel: null,
-      state,
-      roomName: null,
-      roomCode: null,
-      spokenReply: state === 'off' ? 'Apago la cámara.' : state === 'on' ? 'Prendo la cámara.' : 'Cambio el estado de la cámara.',
-    }
+      state: camState,
+      spokenReply: camState === 'off' ? 'Apago la cámara.' : camState === 'on' ? 'Prendo la cámara.' : 'Cambio el estado de la cámara.',
+    })
   }
 
-  if ((utterance.includes('microfono') || utterance.includes('micro')) && context.route === 'room') {
-    return {
+  // ── Micrófono propio — "silenciame", "muteame", "apagá el micro", "activame el audio" ──
+  const isMicPhrase =
+    utterance.includes('microfono') ||
+    utterance.includes('micro') ||
+    utterance.includes('audio') ||
+    /silencia(me)?$|muteame|mutearme/.test(utterance) ||
+    (/(silencia|mutea)/.test(utterance) && !utterance.includes(' a '))
+  if (isMicPhrase && context.route === 'room') {
+    const micState = state ?? (/(apaga|silencia|mutea|desactiva|corta)/.test(utterance) ? 'off' : /(activa|prende|prender|activar|abre)/.test(utterance) ? 'on' : null)
+    return cmd({
       action: 'set_microphone',
-      panel: null,
-      state,
-      roomName: null,
-      roomCode: null,
-      spokenReply: state === 'off' ? 'Apago el micrófono.' : state === 'on' ? 'Prendo el micrófono.' : 'Cambio el estado del micrófono.',
-    }
+      state: micState,
+      spokenReply: micState === 'off' ? 'Te silencio.' : micState === 'on' ? 'Activo el micrófono.' : 'Cambio el estado del micrófono.',
+    })
   }
 
+  // ── Página siguiente / anterior ─────────────────────────
   if ((utterance.includes('pagina siguiente') || utterance.includes('hoja siguiente') || utterance.includes('pasar de pagina') || utterance.includes('pasar de hoja') || utterance.includes('siguiente hoja')) && context.route === 'room') {
-    return {
-      action: 'next_page',
-      panel: null,
-      state: null,
-      roomName: null,
-      roomCode: null,
-      spokenReply: 'Voy a la hoja siguiente.',
-    }
+    return cmd({ action: 'next_page', spokenReply: 'Voy a la hoja siguiente.' })
   }
 
   if ((utterance.includes('pagina anterior') || utterance.includes('hoja anterior') || utterance.includes('volver de pagina') || utterance.includes('anterior hoja')) && context.route === 'room') {
-    return {
-      action: 'previous_page',
-      panel: null,
-      state: null,
-      roomName: null,
-      roomCode: null,
-      spokenReply: 'Voy a la hoja anterior.',
-    }
+    return cmd({ action: 'previous_page', spokenReply: 'Voy a la hoja anterior.' })
   }
 
+  // ── Notas rápidas ───────────────────────────────────────
   if ((utterance.includes('agrega nota') || utterance.includes('agregar nota') || utterance.includes('crea una nota') || utterance.includes('nueva nota')) && context.route === 'room') {
-    return {
-      action: 'add_note',
-      panel: null,
-      state: null,
-      roomName: null,
-      roomCode: null,
-      spokenReply: 'Agrego una nota nueva.',
-    }
+    return cmd({ action: 'add_note', spokenReply: 'Agrego una nota nueva.' })
   }
 
   if ((utterance.includes('elimina nota') || utterance.includes('borrar nota') || utterance.includes('borra nota')) && context.route === 'room') {
-    return {
-      action: 'delete_note',
-      panel: null,
-      state: null,
-      roomName: null,
-      roomCode: null,
-      spokenReply: 'Elimino la nota.',
-    }
+    return cmd({ action: 'delete_note', spokenReply: 'Elimino la nota.' })
   }
 
+  // ── Crear proyecto ──────────────────────────────────────
+  if ((utterance.includes('crea un proyecto') || utterance.includes('creame un proyecto') || utterance.includes('crear proyecto') || utterance.includes('nuevo proyecto')) && context.route === 'room') {
+    const projectName = extractProjectName(rawUtterance) ?? 'Proyecto nuevo'
+    return cmd({ action: 'create_project', projectName, spokenReply: `Listo, creo el proyecto ${projectName}.` })
+  }
+
+  // ── Chat ────────────────────────────────────────────────
   if (utterance.includes('chat') && context.route === 'room') {
-    return {
-      action: /(abr[ií]|abre|mostrar|mostra)/.test(utterance) ? 'open_chat' : 'close_chat',
-      panel: null,
-      state: null,
-      roomName: null,
-      roomCode: null,
-      spokenReply: /(abr[ií]|abre|mostrar|mostra)/.test(utterance) ? 'Abro el chat.' : 'Cierro el chat.',
-    }
+    const open = /(abr[ií]|abre|mostrar|mostra)/.test(utterance)
+    return cmd({ action: open ? 'open_chat' : 'close_chat', spokenReply: open ? 'Abro el chat.' : 'Cierro el chat.' })
   }
 
-  return {
+  return cmd({
     action: 'unknown',
-    panel: null,
-    state: null,
-    roomName: null,
-    roomCode: null,
     spokenReply: 'Todavía no entendí ese pedido. Probá con abrir pizarra, apagar cámara o crear una sala.',
-  }
+  })
 }

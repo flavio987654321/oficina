@@ -430,11 +430,12 @@ function LocalSeat({ userId, leaderUserId, userName, angle }: {
 // ─────────────────────────────────────────────────────────
 // Main layout
 // ─────────────────────────────────────────────────────────
-export default function RoomLayout({ roomCode, userId, userName, leaderUserId, onPanelOpen, onPanelClose, onPanelChange }: {
+export default function RoomLayout({ roomCode, userId, userName, leaderUserId, onPanelOpen, onPanelClose, onPanelChange, onProjectChange }: {
   roomCode: string; userId: string; userName: string; leaderUserId?: string
   onPanelOpen?: (closeFn: () => void) => void
   onPanelClose?: () => void
   onPanelChange?: (panel: Panel) => void
+  onProjectChange?: (name: string | null) => void
 }) {
   const participants       = useParticipants()
   const audioTracks        = useTracks([Track.Source.Microphone], { onlySubscribed: true })
@@ -527,6 +528,12 @@ export default function RoomLayout({ roomCode, userId, userName, leaderUserId, o
 
     if ((command.action === 'add_note' || command.action === 'delete_note') && panelContent !== 'notas') {
       handleDesk('notas')
+      window.setTimeout(() => { void dispatchJarvisCommand(command) }, 450)
+      return true
+    }
+
+    if (command.action === 'create_project' && panelContent !== 'cuaderno') {
+      handleDesk('cuaderno')
       window.setTimeout(() => { void dispatchJarvisCommand(command) }, 450)
       return true
     }
@@ -659,7 +666,7 @@ export default function RoomLayout({ roomCode, userId, userName, leaderUserId, o
           </div>
           <div className="flex-1 overflow-hidden">
             {panelContent === 'pizarra'  && <Whiteboard roomCode={roomCode} userName={userName} />}
-            {panelContent === 'cuaderno' && <Notebook   roomCode={roomCode} userId={userId} />}
+            {panelContent === 'cuaderno' && <Notebook   roomCode={roomCode} userId={userId} onProjectChange={onProjectChange} />}
             {panelContent === 'notas'    && <QuickNotes roomCode={roomCode} userName={userName} />}
           </div>
         </div>
