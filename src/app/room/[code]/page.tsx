@@ -1,6 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import JarvisAssistant from '@/components/JarvisAssistant'
+import { useJarvisHandler } from '@/lib/jarvisBus'
+import { resolveToggleState, type JarvisPanel } from '@/lib/jarvisTypes'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { LiveKitRoom } from '@livekit/components-react'
@@ -11,6 +14,7 @@ const RoomLayout       = dynamic(() => import('./RoomLayout'),       { ssr: fals
 const Chat             = dynamic(() => import('./Chat'),             { ssr: false })
 const GestureOverlay   = dynamic(() => import('./GestureOverlay'),   { ssr: false })
 const GestureGuide     = dynamic(() => import('./GestureGuide'),     { ssr: false })
+const RoomVoiceControls = dynamic(() => import('./RoomVoiceControls'), { ssr: false })
 
 export default function RoomPage() {
   const router = useRouter()
@@ -28,6 +32,7 @@ export default function RoomPage() {
   const [kicked,       setKicked]       = useState(false)
   const [gestureOn,    setGestureOn]    = useState(false)
   const [guideOpen,    setGuideOpen]    = useState(false)
+  const [panelContent, setPanelContent] = useState<JarvisPanel | null>(null)
   const closePanelRef = useRef<(() => void) | null>(null)
 
   const isLeader = !!userId && !!leaderUserId && userId === leaderUserId
@@ -76,6 +81,26 @@ export default function RoomPage() {
     await supabase.from('rooms').delete().eq('code', code)
     router.push('/dashboard')
   }
+
+  useJarvisHandler(useCallback(async (command) => {
+    if (command.action === 'set_gestures') {
+      setGestureOn((current) => resolveToggleState(current, command.state))
+      return true
+    }
+
+    if (command.action === 'open_chat') {
+      setChatOpen(true)
+      setUnread(0)
+      return true
+    }
+
+    if (command.action === 'close_chat') {
+      setChatOpen(false)
+      return true
+    }
+
+    return false
+  }, []))
 
   // Kicked screen
   if (kicked) {
@@ -168,6 +193,18 @@ export default function RoomPage() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ color: '#7a6040', fontSize: 12, fontFamily: 'sans-serif' }}>{userName}</span>
+
+          <JarvisAssistant
+            context={{
+              route: 'room',
+              userName,
+              roomName,
+              roomCode: typeof code === 'string' ? code : '',
+              panelContent,
+              gesturesOn: gestureOn,
+              isLeader,
+            }}
+          />
 
           {/* Chat toggle */}
           <button
@@ -328,6 +365,7 @@ export default function RoomPage() {
           audio={false}
           style={{ height: '100%' }}
         >
+          <RoomVoiceControls />
           <RoomLayout
             roomCode={code as string}
             userId={userId}
@@ -335,6 +373,7 @@ export default function RoomPage() {
             leaderUserId={leaderUserId}
             onPanelOpen={(closeFn) => { setPanelOpen(true);  closePanelRef.current = closeFn }}
             onPanelClose={() =>       { setPanelOpen(false); closePanelRef.current = null  }}
+            onPanelChange={(panel) => setPanelContent(panel)}
           />
         </LiveKitRoom>
 

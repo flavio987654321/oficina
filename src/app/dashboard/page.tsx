@@ -1,8 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+
+import JarvisAssistant from '@/components/JarvisAssistant'
+import { useJarvisHandler } from '@/lib/jarvisBus'
+import { supabase } from '@/lib/supabase'
 
 type Room = { id: string; name: string; code: string; created_at: string }
 
@@ -12,55 +15,89 @@ function generateCode() {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [userName,    setUserName]    = useState('')
-  const [userId,      setUserId]      = useState('')
-  const [rooms,       setRooms]       = useState<Room[]>([])
+  const [userName, setUserName] = useState('')
+  const [userId, setUserId] = useState('')
+  const [rooms, setRooms] = useState<Room[]>([])
   const [newRoomName, setNewRoomName] = useState('')
-  const [joinCode,    setJoinCode]    = useState('')
-  const [loading,     setLoading]     = useState(false)
-  const [error,       setError]       = useState('')
-  const [tab,         setTab]         = useState<'crear' | 'unirse'>('crear')
+  const [joinCode, setJoinCode] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [tab, setTab] = useState<'crear' | 'unirse'>('crear')
+
+  const loadRooms = useCallback(async (uid: string) => {
+    const { data } = await supabase.from('rooms').select('*')
+      .eq('created_by', uid)
+      .order('created_at', { ascending: false })
+    if (data) setRooms(data)
+  }, [])
+
+  const createRoom = useCallback(async (name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return false
+
+    setLoading(true)
+    setError('')
+    const { data, error } = await supabase
+      .from('rooms').insert({ name: trimmed, code: generateCode(), created_by: userId })
+      .select().single()
+    setLoading(false)
+
+    if (error) setError('Error al crear la sala')
+    else {
+      setNewRoomName('')
+      router.push(`/room/${data.code}`)
+    }
+
+    return !error
+  }, [router, userId])
+
+  const joinRoom = useCallback(async (code: string) => {
+    const trimmed = code.trim().toUpperCase()
+    if (!trimmed) return false
+
+    setError('')
+    const { data } = await supabase.from('rooms').select('*')
+      .eq('code', trimmed).single()
+
+    if (!data) setError('Código de sala inválido')
+    else router.push(`/room/${data.code}`)
+
+    return !!data
+  }, [router])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) { router.push('/auth/login'); return }
       setUserName(data.user.user_metadata?.name || data.user.email || '')
       setUserId(data.user.id)
-      loadRooms(data.user.id)
+      void loadRooms(data.user.id)
     })
-  }, [router])
-
-  async function loadRooms(uid: string) {
-    const { data } = await supabase.from('rooms').select('*')
-      .eq('created_by', uid)
-      .order('created_at', { ascending: false })
-    if (data) setRooms(data)
-  }
+  }, [loadRooms, router])
 
   async function handleCreateRoom(e: React.FormEvent) {
     e.preventDefault()
-    if (!newRoomName.trim()) return
-    setLoading(true); setError('')
-    const { data, error } = await supabase
-      .from('rooms').insert({ name: newRoomName.trim(), code: generateCode(), created_by: userId })
-      .select().single()
-    setLoading(false)
-    if (error) setError('Error al crear la sala')
-    else { setNewRoomName(''); router.push(`/room/${data.code}`) }
+    await createRoom(newRoomName)
   }
 
   async function handleJoinRoom(e: React.FormEvent) {
     e.preventDefault()
-    if (!joinCode.trim()) return
-    setError('')
-    const { data } = await supabase.from('rooms').select('*')
-      .eq('code', joinCode.trim().toUpperCase()).single()
-    if (!data) setError('Código de sala inválido')
-    else router.push(`/room/${data.code}`)
+    await joinRoom(joinCode)
   }
 
   const initials = userName ? userName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?'
   const firstName = userName.split(' ')[0]
+
+  useJarvisHandler(useCallback(async (command) => {
+    if (command.action === 'create_room') {
+      return createRoom(command.roomName || `Sala de ${firstName || 'equipo'}`)
+    }
+
+    if (command.action === 'join_room' && command.roomCode) {
+      return joinRoom(command.roomCode)
+    }
+
+    return false
+  }, [createRoom, firstName, joinRoom]))
 
   return (
     <div style={{
@@ -68,8 +105,6 @@ export default function DashboardPage() {
       background: '#f4f4f5',
       fontFamily: "'Inter', system-ui, sans-serif",
     }}>
-
-      {/* Top bar */}
       <header style={{
         height: 60,
         background: '#fff',
@@ -91,6 +126,15 @@ export default function DashboardPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <JarvisAssistant
+            variant="light"
+            context={{
+              route: 'dashboard',
+              userName,
+              roomsCount: rooms.length,
+            }}
+          />
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{
               width: 34, height: 34, borderRadius: '50%',
@@ -115,8 +159,6 @@ export default function DashboardPage() {
       </header>
 
       <main style={{ maxWidth: 960, margin: '0 auto', padding: '48px 24px' }}>
-
-        {/* Welcome */}
         <div style={{ marginBottom: 40 }}>
           <p style={{ margin: '0 0 4px', fontSize: 13, color: '#a1a1aa', fontWeight: 500 }}>
             Bienvenido de vuelta
@@ -131,14 +173,13 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Stats row */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 40,
         }}>
           {[
-            { label: 'Salas activas',    value: rooms.length,  icon: '🏢' },
+            { label: 'Salas activas', value: rooms.length, icon: '🏢' },
             { label: 'Última actividad', value: rooms[0] ? new Date(rooms[0].created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) : '—', icon: '📅' },
-            { label: 'Estado',           value: 'En línea',    icon: '🟢' },
+            { label: 'Estado', value: 'En línea', icon: '🟢' },
           ].map(stat => (
             <div key={stat.label} style={{
               background: '#fff', borderRadius: 12, padding: '20px 22px',
@@ -152,7 +193,6 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Create / Join */}
         <div style={{
           background: '#fff', borderRadius: 16, padding: 32,
           border: '1px solid #e4e4e7',
@@ -163,7 +203,6 @@ export default function DashboardPage() {
             Crear o unirse a una sala
           </h2>
 
-          {/* Tabs */}
           <div style={{
             display: 'inline-flex', background: '#f4f4f5', borderRadius: 10,
             padding: 4, gap: 2, marginBottom: 28,
@@ -255,7 +294,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Rooms */}
         {rooms.length > 0 && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -346,7 +384,6 @@ export default function DashboardPage() {
             </p>
           </div>
         )}
-
       </main>
     </div>
   )

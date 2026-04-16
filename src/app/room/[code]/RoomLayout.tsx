@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   useParticipants,
   useLocalParticipant,
@@ -12,12 +12,13 @@ import {
 import { Track, Participant } from 'livekit-client'
 import { supabase } from '@/lib/supabase'
 import dynamic from 'next/dynamic'
+import { dispatchJarvisCommand, useJarvisHandler } from '@/lib/jarvisBus'
 
 const Whiteboard  = dynamic(() => import('./Whiteboard'),  { ssr: false })
 const Notebook    = dynamic(() => import('./Notebook'),    { ssr: false })
 const QuickNotes  = dynamic(() => import('./QuickNotes'),  { ssr: false })
 
-type Panel = null | 'pizarra' | 'cuaderno' | 'notas'
+export type Panel = null | 'pizarra' | 'cuaderno' | 'notas'
 
 const MAX_SEATS = 6
 const TABLE_R   = 120
@@ -395,10 +396,11 @@ function LocalSeat({ userId, leaderUserId, userName, angle }: {
 // ─────────────────────────────────────────────────────────
 // Main layout
 // ─────────────────────────────────────────────────────────
-export default function RoomLayout({ roomCode, userId, userName, leaderUserId, onPanelOpen, onPanelClose }: {
+export default function RoomLayout({ roomCode, userId, userName, leaderUserId, onPanelOpen, onPanelClose, onPanelChange }: {
   roomCode: string; userId: string; userName: string; leaderUserId?: string
   onPanelOpen?: (closeFn: () => void) => void
   onPanelClose?: () => void
+  onPanelChange?: (panel: Panel) => void
 }) {
   const participants       = useParticipants()
   const audioTracks        = useTracks([Track.Source.Microphone], { onlySubscribed: true })
@@ -452,6 +454,34 @@ export default function RoomLayout({ roomCode, userId, userName, leaderUserId, o
     if (panelContent) { setPanelContent(id); return }
     openPanel(id)
   }
+
+  useEffect(() => { onPanelChange?.(panelContent) }, [onPanelChange, panelContent])
+
+  useJarvisHandler(useCallback(async (command) => {
+    if (command.action === 'open_panel' && command.panel) {
+      handleDesk(command.panel)
+      return true
+    }
+
+    if (command.action === 'close_panel') {
+      if (panelContent) closePanel()
+      return true
+    }
+
+    if ((command.action === 'next_page' || command.action === 'previous_page') && panelContent !== 'cuaderno') {
+      handleDesk('cuaderno')
+      window.setTimeout(() => { void dispatchJarvisCommand(command) }, 450)
+      return true
+    }
+
+    if ((command.action === 'add_note' || command.action === 'delete_note') && panelContent !== 'notas') {
+      handleDesk('notas')
+      window.setTimeout(() => { void dispatchJarvisCommand(command) }, 450)
+      return true
+    }
+
+    return false
+  }, [panelContent]))
 
   function getAngle(i: number) { return (2 * Math.PI * i) / MAX_SEATS - Math.PI / 2 }
 

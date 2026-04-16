@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useGesture } from '@/lib/useGesture'
+import { useJarvisHandler } from '@/lib/jarvisBus'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Highlight from '@tiptap/extension-highlight'
@@ -353,6 +354,20 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     if (e.gesture === 'swipe_right') goToPage(pageIndexRef.current - 1)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goToPage]), ['swipe_left', 'swipe_right'])
+
+  useJarvisHandler(useCallback(async (command) => {
+    if (command.action === 'next_page') {
+      goToPage(pageIndexRef.current + 1)
+      return true
+    }
+
+    if (command.action === 'previous_page') {
+      goToPage(pageIndexRef.current - 1)
+      return true
+    }
+
+    return false
+  }, [goToPage]))
 
   // ── Render ────────────────────────────────────────────
   return (

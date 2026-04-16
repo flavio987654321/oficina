@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useGesture } from '@/lib/useGesture'
+import { useJarvisHandler } from '@/lib/jarvisBus'
 
 type StickyNote = {
   id: string
@@ -354,6 +355,22 @@ export default function QuickNotes({ roomCode, userName }: { roomCode: string; u
     persist(notes.filter(n => n.id !== id))
     setEditing(null)
   }
+
+  useJarvisHandler(useCallback(async (command) => {
+    if (command.action === 'add_note') {
+      addNote()
+      return true
+    }
+
+    if (command.action === 'delete_note') {
+      const targetId = editing?.id ?? notes[notes.length - 1]?.id
+      if (!targetId) return true
+      deleteNote(targetId)
+      return true
+    }
+
+    return false
+  }, [addNote, deleteNote, editing, notes]))
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
