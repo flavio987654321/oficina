@@ -125,6 +125,11 @@ export default function DashboardPage() {
           gap: 12px;
           min-width: 0;
         }
+        .dashboard-account-stack {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
         .dashboard-main {
           max-width: 960px;
           margin: 0 auto;
@@ -157,6 +162,11 @@ export default function DashboardPage() {
             justify-content: space-between;
             flex-wrap: wrap;
             row-gap: 10px;
+          }
+          .dashboard-account-stack {
+            display: flex;
+            align-items: center;
+            gap: 12px;
           }
           .dashboard-main {
             padding: 28px 16px 40px;
@@ -207,16 +217,26 @@ export default function DashboardPage() {
           }
           .dashboard-user-chip {
             min-width: 0;
-            max-width: calc(100vw - 180px);
+            max-width: calc(100vw - 160px);
           }
           .dashboard-user-name {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
           }
+          .dashboard-account-stack {
+            margin-left: auto;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+          }
+          .dashboard-user-chip {
+            justify-content: flex-end;
+          }
           .dashboard-signout {
             padding: 6px 10px !important;
             font-size: 12px !important;
+            width: 100%;
           }
           .dashboard-room-card {
             padding: 20px !important;
@@ -250,30 +270,30 @@ export default function DashboardPage() {
             }}
           />
 
-          <div className="dashboard-user-chip" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 34, height: 34, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #1c1917, #44403c)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fbbf24', fontWeight: 700, fontSize: 12,
-              flexShrink: 0,
-            }}>{initials}</div>
-            <div style={{ minWidth: 0 }}>
-              <p className="dashboard-user-name" style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#18181b', lineHeight: 1.2 }}>{userName}</p>
+          <div className="dashboard-account-stack">
+            <div className="dashboard-user-chip" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: 34, height: 34, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #1c1917, #44403c)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fbbf24', fontWeight: 700, fontSize: 12,
+                flexShrink: 0,
+              }}>{initials}</div>
+              <div style={{ minWidth: 0 }}>
+                <p className="dashboard-user-name" style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#18181b', lineHeight: 1.2 }}>{userName}</p>
+              </div>
             </div>
+
+            <button
+              className="dashboard-signout"
+              onClick={async () => { await supabase.auth.signOut(); router.push('/auth/login') }}
+              style={{
+                background: 'none', border: '1px solid #e4e4e7', borderRadius: 8,
+                padding: '6px 14px', cursor: 'pointer', color: '#71717a',
+                fontSize: 13, fontWeight: 500, transition: 'all 0.15s',
+              }}
+            >Cerrar sesión</button>
           </div>
-
-          <div style={{ width: 1, height: 20, background: '#e4e4e7' }} />
-
-          <button
-            className="dashboard-signout"
-            onClick={async () => { await supabase.auth.signOut(); router.push('/auth/login') }}
-            style={{
-              background: 'none', border: '1px solid #e4e4e7', borderRadius: 8,
-              padding: '6px 14px', cursor: 'pointer', color: '#71717a',
-              fontSize: 13, fontWeight: 500, transition: 'all 0.15s',
-            }}
-          >Cerrar sesión</button>
         </div>
       </header>
 
