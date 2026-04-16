@@ -468,7 +468,7 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
         {/* Left margin red line */}
         <div style={{
           position: 'absolute', top: 0, bottom: 0, left: 68,
-          width: 1.5, background: '#e87878', opacity: 0.55, pointerEvents: 'none', zIndex: 1,
+          width: 1.5, background: '#df6b6b', opacity: 0.8, pointerEvents: 'none', zIndex: 4,
         }} />
 
         {/* Page header */}
