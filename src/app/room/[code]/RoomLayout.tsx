@@ -8,6 +8,8 @@ import {
   VideoTrack,
   AudioTrack,
   useTracks,
+  useParticipantTracks,
+  type TrackReference,
 } from '@livekit/components-react'
 import { Track, Participant } from 'livekit-client'
 import { supabase } from '@/lib/supabase'
@@ -288,7 +290,7 @@ function SeatAvatar({
 }: {
   name: string; isLocal?: boolean; isLeader?: boolean
   isCamOn?: boolean; isMicOn?: boolean; isSpeaking?: boolean
-  track?: ReturnType<typeof useTracks>[0]; angle: number
+  track?: TrackReference; angle: number
   onToggleMic?: () => void; onToggleCam?: () => void; onMuteLocally?: () => void
   visible?: boolean
 }) {
@@ -312,8 +314,8 @@ function SeatAvatar({
           ? `0 0 0 4px rgba(34,197,94,0.35), 0 0 18px rgba(34,197,94,0.45)`
           : `0 4px 14px rgba(0,0,0,0.45)`,
       }}>
-        {track && 'publication' in track && track.publication ? (
-          <VideoTrack trackRef={track as any} className="w-full h-full object-cover" />
+        {track ? (
+          <VideoTrack trackRef={track} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center" style={{
             background: isLocal ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)'
@@ -366,9 +368,8 @@ function SeatAvatar({
 function RemoteSeat({ participant, isLeader, angle, onMute }: {
   participant: Participant; isLeader: boolean; angle: number; onMute: () => void
 }) {
-  const isSpeaking  = useIsSpeaking(participant)
-  const videoTracks = useTracks([Track.Source.Camera], { onlySubscribed: false })
-  const track       = videoTracks.find(t => t.participant.sid === participant.sid)
+  const isSpeaking = useIsSpeaking(participant)
+  const [track] = useParticipantTracks([Track.Source.Camera], participant.identity)
   return (
     <SeatAvatar name={participant.name || 'Usuario'} isLeader={isLeader}
       isSpeaking={isSpeaking} track={track} angle={angle} onMuteLocally={onMute} visible />
@@ -379,9 +380,8 @@ function LocalSeat({ userId, leaderUserId, userName, angle }: {
   userId: string; leaderUserId?: string; userName: string; angle: number
 }) {
   const { localParticipant, isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant()
-  const isSpeaking  = useIsSpeaking(localParticipant)
-  const videoTracks = useTracks([Track.Source.Camera], { onlySubscribed: false })
-  const track       = videoTracks.find(t => t.participant.sid === localParticipant.sid)
+  const isSpeaking = useIsSpeaking(localParticipant)
+  const [track] = useParticipantTracks([Track.Source.Camera], localParticipant.identity)
   return (
     <SeatAvatar name={localParticipant.name || userName} isLocal
       isLeader={userId === leaderUserId}
@@ -405,7 +405,24 @@ export default function RoomLayout({ roomCode, userId, userName, leaderUserId, o
   const participants       = useParticipants()
   const audioTracks        = useTracks([Track.Source.Microphone], { onlySubscribed: true })
   const remoteParticipants = participants.slice(0, MAX_SEATS - 1)
-  const containerSize      = (SEAT_R + 120) * 2
+  const baseContainerSize  = (SEAT_R + 120) * 2
+  const [sceneScale, setSceneScale] = useState(1)
+
+  useEffect(() => {
+    const updateSceneScale = () => {
+      const availableWidth = window.innerWidth - 20
+      const availableHeight = window.innerHeight - 96
+      const nextScale = Math.min(1, availableWidth / baseContainerSize, availableHeight / baseContainerSize)
+      setSceneScale(Math.max(0.54, nextScale))
+    }
+
+    updateSceneScale()
+    window.addEventListener('resize', updateSceneScale)
+
+    return () => window.removeEventListener('resize', updateSceneScale)
+  }, [baseContainerSize])
+
+  const containerSize = baseContainerSize * sceneScale
 
   // Project count badge
   const [projectCount, setProjectCount] = useState(0)
@@ -547,6 +564,15 @@ export default function RoomLayout({ roomCode, userId, userName, leaderUserId, o
       {!sceneHidden && (
         <div className="absolute inset-0 flex items-center justify-center" style={sceneStyle}>
           <div className="relative" style={{ width: containerSize, height: containerSize }}>
+            <div
+              className="absolute left-1/2 top-1/2"
+              style={{
+                width: baseContainerSize,
+                height: baseContainerSize,
+                transform: `translate(-50%, -50%) scale(${sceneScale})`,
+                transformOrigin: 'center',
+              }}
+            >
 
             <WoodTable activePanel={panelContent} onToggle={handleDesk} projectCount={projectCount} />
 
@@ -577,6 +603,7 @@ export default function RoomLayout({ roomCode, userId, userName, leaderUserId, o
 
             <LocalSeat userId={userId} leaderUserId={leaderUserId}
               userName={userName} angle={getAngle(MAX_SEATS - 1)} />
+            </div>
           </div>
         </div>
       )}

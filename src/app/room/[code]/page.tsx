@@ -32,6 +32,8 @@ export default function RoomPage() {
   const [kicked,       setKicked]       = useState(false)
   const [gestureOn,    setGestureOn]    = useState(false)
   const [guideOpen,    setGuideOpen]    = useState(false)
+  const [compactHeader, setCompactHeader] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [panelContent, setPanelContent] = useState<JarvisPanel | null>(null)
   const closePanelRef = useRef<(() => void) | null>(null)
 
@@ -72,6 +74,19 @@ export default function RoomPage() {
     return () => { supabase.removeChannel(ch) }
   }, [code])
 
+  useEffect(() => {
+    const updateCompactHeader = () => setCompactHeader(window.innerWidth < 960)
+    updateCompactHeader()
+    window.addEventListener('resize', updateCompactHeader)
+    return () => window.removeEventListener('resize', updateCompactHeader)
+  }, [])
+
+  useEffect(() => {
+    if (!compactHeader) {
+      setMobileMenuOpen(false)
+    }
+  }, [compactHeader])
+
   async function handleCloseRoom() {
     // Broadcast to all participants first
     await supabase.channel(`room-control:${code}`).send({
@@ -80,6 +95,22 @@ export default function RoomPage() {
     // Delete from DB
     await supabase.from('rooms').delete().eq('code', code)
     router.push('/dashboard')
+  }
+
+  function handleToggleChat() {
+    setChatOpen((open) => !open)
+    setUnread(0)
+    setMobileMenuOpen(false)
+  }
+
+  function handleToggleGestures() {
+    setGestureOn((current) => !current)
+    setMobileMenuOpen(false)
+  }
+
+  function handleOpenGuide() {
+    setGuideOpen(true)
+    setMobileMenuOpen(false)
   }
 
   useJarvisHandler(useCallback(async (command) => {
@@ -148,7 +179,7 @@ export default function RoomPage() {
       {/* Header */}
       <div style={{
         background: 'rgba(15,10,3,0.95)', backdropFilter: 'blur(8px)',
-        padding: '0 20px', height: 52,
+        padding: compactHeader ? '0 12px' : '0 20px', height: 52,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         borderBottom: '1px solid rgba(255,200,100,0.10)',
         flexShrink: 0, position: 'relative', zIndex: 40,
@@ -191,7 +222,7 @@ export default function RoomPage() {
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: compactHeader ? 'none' : 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ color: '#7a6040', fontSize: 12, fontFamily: 'sans-serif' }}>{userName}</span>
 
           <JarvisAssistant
@@ -208,7 +239,7 @@ export default function RoomPage() {
 
           {/* Chat toggle */}
           <button
-            onClick={() => { setChatOpen(o => !o); setUnread(0) }}
+            onClick={handleToggleChat}
             style={{
               background: chatOpen ? '#92400e' : 'rgba(255,200,100,0.08)',
               border: '1px solid rgba(201,147,90,0.25)',
@@ -236,7 +267,7 @@ export default function RoomPage() {
 
           {/* Gesture toggle */}
           <button
-            onClick={() => setGestureOn(g => !g)}
+            onClick={handleToggleGestures}
             title={gestureOn ? 'Desactivar gestos' : 'Activar gestos con cámara'}
             style={{
               background: gestureOn ? 'rgba(80,200,120,0.12)' : 'rgba(255,200,100,0.08)',
@@ -281,7 +312,7 @@ export default function RoomPage() {
 
           {/* Gesture guide button */}
           <button
-            onClick={() => setGuideOpen(true)}
+            onClick={handleOpenGuide}
             title="Ver guía de gestos"
             style={{
               background: 'rgba(255,200,100,0.08)',
@@ -309,7 +340,214 @@ export default function RoomPage() {
             </button>
           )}
         </div>
+
+        {compactHeader && (
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            title="Abrir controles de la sala"
+            style={{
+              background: 'rgba(255,200,100,0.08)',
+              border: '1px solid rgba(201,147,90,0.25)',
+              borderRadius: 10,
+              width: 38,
+              height: 38,
+              cursor: 'pointer',
+              color: '#f5d7a7',
+              fontSize: 18,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            =
+          </button>
+        )}
       </div>
+
+      {compactHeader && mobileMenuOpen && (
+        <>
+          <div
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.45)',
+              zIndex: 55,
+            }}
+          />
+
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: 'min(320px, 84vw)',
+            background: 'rgba(20,12,4,0.98)',
+            borderLeft: '1px solid rgba(255,200,100,0.12)',
+            boxShadow: '-20px 0 40px rgba(0,0,0,0.45)',
+            zIndex: 60,
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{
+              padding: '18px 16px 14px',
+              borderBottom: '1px solid rgba(255,200,100,0.10)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <div style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg,#4f46e5,#312e81)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}>
+                  {userName?.[0]?.toUpperCase() || 'U'}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: '#f5e6d0', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {userName}
+                  </div>
+                  <div style={{ color: '#a08050', fontSize: 11, fontFamily: 'monospace' }}>
+                    {code}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                style={{
+                  background: 'rgba(255,200,100,0.08)',
+                  border: '1px solid rgba(201,147,90,0.22)',
+                  borderRadius: 10,
+                  width: 34,
+                  height: 34,
+                  color: '#f5d7a7',
+                  fontSize: 18,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                X
+              </button>
+            </div>
+
+            <div style={{ padding: 16, display: 'grid', gap: 12 }}>
+              <JarvisAssistant
+                context={{
+                  route: 'room',
+                  userName,
+                  roomName,
+                  roomCode: typeof code === 'string' ? code : '',
+                  panelContent,
+                  gesturesOn: gestureOn,
+                  isLeader,
+                }}
+              />
+
+              <button
+                onClick={handleToggleChat}
+                style={{
+                  background: chatOpen ? '#92400e' : 'rgba(255,200,100,0.08)',
+                  border: '1px solid rgba(201,147,90,0.25)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  cursor: 'pointer',
+                  color: chatOpen ? '#fde68a' : '#f5d7a7',
+                  fontSize: 13,
+                  fontFamily: 'sans-serif',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <span>Chat</span>
+                {unread > 0 && !chatOpen ? <span>{unread > 99 ? '99+' : unread}</span> : null}
+              </button>
+
+              <button
+                onClick={handleToggleGestures}
+                title={gestureOn ? 'Desactivar gestos' : 'Activar gestos con camara'}
+                style={{
+                  background: gestureOn ? 'rgba(80,200,120,0.12)' : 'rgba(255,200,100,0.08)',
+                  border: `1px solid ${gestureOn ? 'rgba(80,200,120,0.3)' : 'rgba(201,147,90,0.25)'}`,
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  cursor: 'pointer',
+                  color: gestureOn ? '#4ade80' : '#f5d7a7',
+                  fontSize: 13,
+                  fontFamily: 'sans-serif',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <span>Gestos</span>
+                <span>{gestureOn ? 'Activados' : 'Desactivados'}</span>
+              </button>
+
+              <button
+                onClick={handleOpenGuide}
+                style={{
+                  background: 'rgba(255,200,100,0.08)',
+                  border: '1px solid rgba(201,147,90,0.25)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  cursor: 'pointer',
+                  color: '#f5d7a7',
+                  fontSize: 13,
+                  fontFamily: 'sans-serif',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <span>Ayuda de gestos</span>
+                <span>Ver</span>
+              </button>
+
+              {isLeader && (
+                <button
+                  onClick={() => {
+                    setClosingRoom(true)
+                    setMobileMenuOpen(false)
+                  }}
+                  style={{
+                    background: 'rgba(220,38,38,0.12)',
+                    border: '1px solid rgba(220,38,38,0.25)',
+                    borderRadius: 12,
+                    padding: '12px 14px',
+                    cursor: 'pointer',
+                    color: '#f87171',
+                    fontSize: 13,
+                    fontFamily: 'sans-serif',
+                    fontWeight: 700,
+                    textAlign: 'left',
+                  }}
+                >
+                  Cerrar sala
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Confirm close modal */}
       {closingRoom && (
