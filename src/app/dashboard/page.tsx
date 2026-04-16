@@ -125,6 +125,12 @@ export default function DashboardPage() {
           gap: 12px;
           min-width: 0;
         }
+        .dashboard-user-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
         .dashboard-account-stack {
           display: flex;
           align-items: center;
@@ -154,19 +160,19 @@ export default function DashboardPage() {
         @media (max-width: 820px) {
           .dashboard-header {
             padding: 12px 16px;
-            align-items: center;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: start;
+            row-gap: 10px;
           }
           .dashboard-header-right {
-            width: 100%;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            row-gap: 10px;
-            align-items: flex-start;
+            display: contents;
           }
-          .dashboard-account-stack {
+          .dashboard-user-actions {
+            grid-column: 1 / 2;
             display: flex;
             align-items: center;
+            justify-content: flex-start;
             gap: 12px;
           }
           .dashboard-main {
@@ -184,6 +190,12 @@ export default function DashboardPage() {
           }
         }
         @media (max-width: 560px) {
+          .dashboard-brand {
+            align-self: center;
+          }
+          .dashboard-user-actions {
+            align-items: center;
+          }
           .dashboard-stats {
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 10px;
@@ -218,7 +230,7 @@ export default function DashboardPage() {
           }
           .dashboard-user-chip {
             min-width: 0;
-            max-width: calc(100vw - 160px);
+            max-width: calc(100vw - 170px);
           }
           .dashboard-user-name {
             white-space: nowrap;
@@ -226,11 +238,11 @@ export default function DashboardPage() {
             text-overflow: ellipsis;
           }
           .dashboard-account-stack {
-            margin-left: auto;
+            justify-self: end;
+            align-self: start;
+            gap: 6px;
             flex-direction: column;
             align-items: flex-end;
-            gap: 6px;
-            margin-top: -2px;
           }
           .dashboard-user-chip {
             justify-content: flex-end;
@@ -238,7 +250,6 @@ export default function DashboardPage() {
           .dashboard-signout {
             padding: 6px 10px !important;
             font-size: 12px !important;
-            width: 100%;
           }
           .dashboard-room-card {
             padding: 20px !important;
@@ -250,7 +261,7 @@ export default function DashboardPage() {
       `}</style>
 
       <header className="dashboard-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="dashboard-brand" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
             background: 'linear-gradient(135deg, #1c1917, #44403c)',
@@ -263,15 +274,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="dashboard-header-right">
-          <JarvisAssistant
-            variant="light"
-            context={{
-              route: 'dashboard',
-              userName,
-              roomsCount: rooms.length,
-            }}
-          />
-
           <div className="dashboard-account-stack">
             <div className="dashboard-user-chip" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
@@ -295,6 +297,17 @@ export default function DashboardPage() {
                 fontSize: 13, fontWeight: 500, transition: 'all 0.15s',
               }}
             >Cerrar sesión</button>
+          </div>
+
+          <div className="dashboard-user-actions">
+            <JarvisAssistant
+              variant="light"
+              context={{
+                route: 'dashboard',
+                userName,
+                roomsCount: rooms.length,
+              }}
+            />
           </div>
         </div>
       </header>
