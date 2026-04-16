@@ -142,15 +142,25 @@ export default function Chat({
     return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
   }
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 720
+
   return (
     <div style={{
-      position: 'absolute', top: 0, right: 0, bottom: 0,
-      width: 280, zIndex: 30,
+      position: 'absolute',
+      top: isMobile ? 'auto' : 0,
+      right: isMobile ? 10 : 0,
+      bottom: isMobile ? 84 : 0,
+      width: isMobile ? 'calc(100% - 20px)' : 280,
+      height: isMobile ? 'min(62vh, 520px)' : 'auto',
+      zIndex: 30,
       display: 'flex', flexDirection: 'column',
       background: 'rgba(10,8,4,0.92)',
       backdropFilter: 'blur(12px)',
-      borderLeft: '1px solid rgba(255,200,100,0.12)',
-      boxShadow: '-4px 0 24px rgba(0,0,0,0.4)',
+      borderLeft: isMobile ? '1px solid rgba(255,200,100,0.12)' : '1px solid rgba(255,200,100,0.12)',
+      border: isMobile ? '1px solid rgba(255,200,100,0.12)' : undefined,
+      borderRadius: isMobile ? 18 : 0,
+      boxShadow: isMobile ? '0 14px 40px rgba(0,0,0,0.42)' : '-4px 0 24px rgba(0,0,0,0.4)',
+      overflow: 'hidden',
     }}>
 
       {/* Header */}

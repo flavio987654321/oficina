@@ -8,7 +8,6 @@ import {
   VideoTrack,
   AudioTrack,
   useTracks,
-  useParticipantTracks,
   type TrackReference,
 } from '@livekit/components-react'
 import { Track, Participant } from 'livekit-client'
@@ -25,6 +24,17 @@ export type Panel = null | 'pizarra' | 'cuaderno' | 'notas'
 const MAX_SEATS = 6
 const TABLE_R   = 120
 const SEAT_R    = 220
+
+function getCameraTrackRef(participant: Participant): TrackReference | undefined {
+  const publication = participant.getTrackPublication(Track.Source.Camera)
+  if (!publication) return undefined
+
+  return {
+    participant,
+    publication,
+    source: Track.Source.Camera,
+  }
+}
 
 // ─────────────────────────────────────────────────────────
 // Desk objects — realistic SVG items that sit on the table
@@ -286,13 +296,14 @@ function ChairShape({ color = '#94a3b8' }: { color?: string }) {
 function SeatAvatar({
   name, isLocal = false, isLeader = false,
   isCamOn = false, isMicOn = false, isSpeaking = false,
-  track, angle, onToggleMic, onToggleCam, onMuteLocally, visible = true,
+  track, angle, onToggleMic, onToggleCam, onMuteLocally, visible = true, mediaError,
 }: {
   name: string; isLocal?: boolean; isLeader?: boolean
   isCamOn?: boolean; isMicOn?: boolean; isSpeaking?: boolean
   track?: TrackReference; angle: number
   onToggleMic?: () => void; onToggleCam?: () => void; onMuteLocally?: () => void
   visible?: boolean
+  mediaError?: string
 }) {
   const x = Math.cos(angle) * SEAT_R
   const y = Math.sin(angle) * SEAT_R
@@ -344,17 +355,24 @@ function SeatAvatar({
         </span>
       </div>
       {isLocal && (
-        <div className="flex gap-1 mt-1 z-10">
+        <div className="flex gap-2 mt-1.5 z-10">
           <button onClick={onToggleMic}
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shadow transition-all ${isMicOn ? 'bg-white text-gray-700' : 'bg-red-500 text-white'}`}>
+            title={isMicOn ? 'Apagar microfono' : 'Encender microfono'}
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-sm shadow transition-all ${isMicOn ? 'bg-white text-gray-700' : 'bg-red-500 text-white'}`}>
             {isMicOn ? '🎤' : '🔇'}
           </button>
           <button onClick={onToggleCam}
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shadow transition-all ${isCamOn ? 'bg-white text-gray-700' : 'bg-red-500 text-white'}`}>
+            title={isCamOn ? 'Apagar camara' : 'Encender camara'}
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-sm shadow transition-all ${isCamOn ? 'bg-white text-gray-700' : 'bg-red-500 text-white'}`}>
             {isCamOn ? '📷' : '📵'}
           </button>
         </div>
       )}
+      {mediaError ? (
+        <span className="text-[10px] font-semibold text-red-200 bg-red-950/70 px-2 py-1 rounded-full mt-1 text-center shadow-sm z-10">
+          {mediaError}
+        </span>
+      ) : null}
       {!isLocal && visible && (
         <button onClick={onMuteLocally}
           className="mt-1 text-xs text-gray-300 hover:text-white opacity-0 hover:opacity-100 bg-black/50 px-1.5 py-0.5 rounded-full shadow-sm z-10 transition">
@@ -369,7 +387,7 @@ function RemoteSeat({ participant, isLeader, angle, onMute }: {
   participant: Participant; isLeader: boolean; angle: number; onMute: () => void
 }) {
   const isSpeaking = useIsSpeaking(participant)
-  const [track] = useParticipantTracks([Track.Source.Camera], participant.identity)
+  const track = getCameraTrackRef(participant)
   return (
     <SeatAvatar name={participant.name || 'Usuario'} isLeader={isLeader}
       isSpeaking={isSpeaking} track={track} angle={angle} onMuteLocally={onMute} visible />
@@ -381,14 +399,30 @@ function LocalSeat({ userId, leaderUserId, userName, angle }: {
 }) {
   const { localParticipant, isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant()
   const isSpeaking = useIsSpeaking(localParticipant)
-  const [track] = useParticipantTracks([Track.Source.Camera], localParticipant.identity)
+  const [mediaError, setMediaError] = useState('')
+  const track = getCameraTrackRef(localParticipant)
   return (
     <SeatAvatar name={localParticipant.name || userName} isLocal
       isLeader={userId === leaderUserId}
       isCamOn={isCameraEnabled} isMicOn={isMicrophoneEnabled}
       isSpeaking={isSpeaking} track={track} angle={angle}
-      onToggleMic={async () => { try { await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled) } catch {} }}
-      onToggleCam={async () => { try { await localParticipant.setCameraEnabled(!isCameraEnabled) } catch {} }}
+      onToggleMic={async () => {
+        setMediaError('')
+        try {
+          await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)
+        } catch {
+          setMediaError('No pude abrir el microfono')
+        }
+      }}
+      onToggleCam={async () => {
+        setMediaError('')
+        try {
+          await localParticipant.setCameraEnabled(!isCameraEnabled, { facingMode: 'user' })
+        } catch {
+          setMediaError(localParticipant.lastCameraError?.message || 'No pude abrir la camara')
+        }
+      }}
+      mediaError={mediaError}
       visible />
   )
 }

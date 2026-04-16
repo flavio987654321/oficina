@@ -246,7 +246,7 @@ export default function RoomPage() {
               borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
               color: chatOpen ? '#fde68a' : '#c9935a',
               fontSize: 12, fontFamily: 'sans-serif', fontWeight: 600,
-              display: 'flex', alignItems: 'center', gap: 6,
+              display: 'none', alignItems: 'center', gap: 6,
               transition: 'all 0.15s', position: 'relative',
             }}
           >
@@ -443,17 +443,19 @@ export default function RoomPage() {
             </div>
 
             <div style={{ padding: 16, display: 'grid', gap: 12 }}>
-              <JarvisAssistant
-                context={{
-                  route: 'room',
-                  userName,
-                  roomName,
-                  roomCode: typeof code === 'string' ? code : '',
-                  panelContent,
-                  gesturesOn: gestureOn,
-                  isLeader,
-                }}
-              />
+              <div style={{ display: 'none' }}>
+                <JarvisAssistant
+                  context={{
+                    route: 'room',
+                    userName,
+                    roomName,
+                    roomCode: typeof code === 'string' ? code : '',
+                    panelContent,
+                    gesturesOn: gestureOn,
+                    isLeader,
+                  }}
+                />
+              </div>
 
               <button
                 onClick={handleToggleChat}
@@ -467,7 +469,7 @@ export default function RoomPage() {
                   fontSize: 13,
                   fontFamily: 'sans-serif',
                   fontWeight: 600,
-                  display: 'flex',
+                  display: 'none',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 12,
@@ -490,7 +492,7 @@ export default function RoomPage() {
                   fontSize: 13,
                   fontFamily: 'sans-serif',
                   fontWeight: 600,
-                  display: 'flex',
+                  display: 'none',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 12,
@@ -548,6 +550,135 @@ export default function RoomPage() {
           </div>
         </>
       )}
+
+      {compactHeader && (
+        <div style={{
+          position: 'fixed',
+          left: 12,
+          right: 88,
+          bottom: 16,
+          zIndex: 58,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          pointerEvents: 'none',
+        }}>
+          <div style={{ pointerEvents: 'auto' }}>
+            <JarvisAssistant
+              context={{
+                route: 'room',
+                userName,
+                roomName,
+                roomCode: typeof code === 'string' ? code : '',
+                panelContent,
+                gesturesOn: gestureOn,
+                isLeader,
+              }}
+            />
+          </div>
+
+          <button
+            onClick={handleToggleGestures}
+            title={gestureOn ? 'Desactivar gestos' : 'Activar gestos con camara'}
+            style={{
+              pointerEvents: 'auto',
+              background: gestureOn ? 'rgba(80,200,120,0.12)' : 'rgba(255,200,100,0.08)',
+              border: `1px solid ${gestureOn ? 'rgba(80,200,120,0.3)' : 'rgba(201,147,90,0.25)'}`,
+              borderRadius: 999,
+              padding: '6px 10px 6px 12px',
+              cursor: 'pointer',
+              color: gestureOn ? '#4ade80' : '#c9935a',
+              fontSize: 12,
+              fontFamily: 'sans-serif',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.15s',
+              backgroundColor: gestureOn ? 'rgba(80,200,120,0.12)' : 'rgba(15,10,3,0.92)',
+              backdropFilter: 'blur(8px)',
+              boxShadow: '0 10px 24px rgba(0,0,0,0.28)',
+            }}
+          >
+            <span>Gestos</span>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 32,
+                height: 18,
+                borderRadius: 999,
+                background: gestureOn ? '#4ade80' : 'rgba(201,147,90,0.28)',
+                position: 'relative',
+                boxShadow: gestureOn
+                  ? 'inset 0 0 0 1px rgba(40,120,70,0.35)'
+                  : 'inset 0 0 0 1px rgba(120,80,35,0.22)',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  left: gestureOn ? 16 : 2,
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  background: '#fffaf0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.28)',
+                  transition: 'left 0.18s ease',
+                }}
+              />
+            </span>
+          </button>
+        </div>
+      )}
+
+      <button
+        onClick={handleToggleChat}
+        title={chatOpen ? 'Cerrar chat' : 'Abrir chat'}
+        style={{
+          position: 'fixed',
+          right: 14,
+          bottom: 18,
+          zIndex: 58,
+          width: 58,
+          height: 58,
+          borderRadius: '50%',
+          border: '1px solid rgba(201,147,90,0.28)',
+          background: chatOpen ? '#92400e' : 'rgba(15,10,3,0.94)',
+          color: chatOpen ? '#fde68a' : '#f5d7a7',
+          cursor: 'pointer',
+          boxShadow: '0 14px 28px rgba(0,0,0,0.32)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 22,
+        }}
+      >
+        ...
+        {unread > 0 && !chatOpen ? (
+          <span style={{
+            position: 'absolute',
+            top: 2,
+            right: 2,
+            minWidth: 20,
+            height: 20,
+            borderRadius: 999,
+            background: '#ef4444',
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 700,
+            fontFamily: 'sans-serif',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0 5px',
+            boxShadow: '0 0 0 2px rgba(15,10,3,0.94)',
+          }}>
+            {unread > 99 ? '99+' : unread}
+          </span>
+        ) : null}
+      </button>
 
       {/* Confirm close modal */}
       {closingRoom && (
