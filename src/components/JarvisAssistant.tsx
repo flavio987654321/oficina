@@ -276,6 +276,21 @@ export default function JarvisAssistant({ context, variant = 'dark' }: JarvisAss
           50%  { opacity: 1; }
           100% { opacity: 0.75; }
         }
+        @media (max-width: 560px) {
+          .jarvis-orb-shell {
+            bottom: 16px !important;
+            gap: 8px !important;
+          }
+          .jarvis-orb-core {
+            width: 58px !important;
+            height: 58px !important;
+          }
+          .jarvis-orb-panel {
+            min-width: min(220px, calc(100vw - 28px)) !important;
+            max-width: calc(100vw - 28px) !important;
+            padding: 10px 12px !important;
+          }
+        }
       `}</style>
 
       <button
@@ -305,7 +320,7 @@ export default function JarvisAssistant({ context, variant = 'dark' }: JarvisAss
       </button>
 
       {orbVisible && (
-        <div style={{
+        <div className="jarvis-orb-shell" style={{
           position: 'fixed',
           left: '50%',
           bottom: 24,
@@ -317,7 +332,7 @@ export default function JarvisAssistant({ context, variant = 'dark' }: JarvisAss
           gap: 10,
           pointerEvents: 'none',
         }}>
-          <div style={{
+          <div className="jarvis-orb-core" style={{
             width: 70,
             height: 70,
             borderRadius: '50%',
@@ -341,7 +356,7 @@ export default function JarvisAssistant({ context, variant = 'dark' }: JarvisAss
             }} />
           </div>
 
-          <div style={{
+          <div className="jarvis-orb-panel" style={{
             minWidth: 240,
             maxWidth: 420,
             background: 'rgba(8,12,20,0.88)',

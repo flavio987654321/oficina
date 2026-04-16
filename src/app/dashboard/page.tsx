@@ -105,14 +105,129 @@ export default function DashboardPage() {
       background: '#f4f4f5',
       fontFamily: "'Inter', system-ui, sans-serif",
     }}>
-      <header style={{
-        height: 60,
-        background: '#fff',
-        borderBottom: '1px solid #e4e4e7',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 32px',
-        position: 'sticky', top: 0, zIndex: 50,
-      }}>
+      <style>{`
+        .dashboard-header {
+          min-height: 60px;
+          background: #fff;
+          border-bottom: 1px solid #e4e4e7;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 32px;
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          gap: 16px;
+        }
+        .dashboard-header-right {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+        .dashboard-main {
+          max-width: 960px;
+          margin: 0 auto;
+          padding: 48px 24px;
+        }
+        .dashboard-stats {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
+          margin-bottom: 40px;
+        }
+        .dashboard-room-form {
+          display: flex;
+          gap: 12px;
+          align-items: flex-end;
+        }
+        .dashboard-rooms-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 16px;
+        }
+        @media (max-width: 820px) {
+          .dashboard-header {
+            padding: 12px 16px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+          }
+          .dashboard-header-right {
+            width: 100%;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            row-gap: 10px;
+          }
+          .dashboard-main {
+            padding: 28px 16px 40px;
+          }
+          .dashboard-room-form {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .dashboard-room-form button[type="submit"] {
+            width: 100%;
+          }
+          .dashboard-rooms-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        @media (max-width: 560px) {
+          .dashboard-stats {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+          }
+          .dashboard-stat-card {
+            padding: 16px 12px !important;
+          }
+          .dashboard-stat-value {
+            font-size: 18px !important;
+            line-height: 1.1;
+            word-break: break-word;
+          }
+          .dashboard-stat-label {
+            font-size: 11px !important;
+          }
+          .dashboard-greeting {
+            font-size: 24px !important;
+            line-height: 1.15;
+          }
+          .dashboard-panel {
+            padding: 24px 16px !important;
+          }
+          .dashboard-tab-group {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+          }
+          .dashboard-tab-group button {
+            width: 100%;
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+          }
+          .dashboard-user-chip {
+            min-width: 0;
+            max-width: calc(100vw - 180px);
+          }
+          .dashboard-user-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .dashboard-signout {
+            padding: 6px 10px !important;
+            font-size: 12px !important;
+          }
+          .dashboard-room-card {
+            padding: 20px !important;
+          }
+          .dashboard-empty-state {
+            padding: 40px 20px !important;
+          }
+        }
+      `}</style>
+
+      <header className="dashboard-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
@@ -125,7 +240,7 @@ export default function DashboardPage() {
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="dashboard-header-right">
           <JarvisAssistant
             variant="light"
             context={{
@@ -135,19 +250,23 @@ export default function DashboardPage() {
             }}
           />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="dashboard-user-chip" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{
               width: 34, height: 34, borderRadius: '50%',
               background: 'linear-gradient(135deg, #1c1917, #44403c)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fbbf24', fontWeight: 700, fontSize: 12,
+              flexShrink: 0,
             }}>{initials}</div>
-            <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#18181b', lineHeight: 1.2 }}>{userName}</p>
+            <div style={{ minWidth: 0 }}>
+              <p className="dashboard-user-name" style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#18181b', lineHeight: 1.2 }}>{userName}</p>
             </div>
           </div>
+
           <div style={{ width: 1, height: 20, background: '#e4e4e7' }} />
+
           <button
+            className="dashboard-signout"
             onClick={async () => { await supabase.auth.signOut(); router.push('/auth/login') }}
             style={{
               background: 'none', border: '1px solid #e4e4e7', borderRadius: 8,
@@ -158,12 +277,12 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main style={{ maxWidth: 960, margin: '0 auto', padding: '48px 24px' }}>
+      <main className="dashboard-main">
         <div style={{ marginBottom: 40 }}>
           <p style={{ margin: '0 0 4px', fontSize: 13, color: '#a1a1aa', fontWeight: 500 }}>
             Bienvenido de vuelta
           </p>
-          <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: '#18181b', letterSpacing: '-0.5px' }}>
+          <h1 className="dashboard-greeting" style={{ margin: 0, fontSize: 30, fontWeight: 800, color: '#18181b', letterSpacing: '-0.5px' }}>
             Hola, {firstName} 👋
           </h1>
           <p style={{ margin: '8px 0 0', fontSize: 14, color: '#71717a' }}>
@@ -173,27 +292,25 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 40,
-        }}>
+        <div className="dashboard-stats">
           {[
             { label: 'Salas activas', value: rooms.length, icon: '🏢' },
             { label: 'Última actividad', value: rooms[0] ? new Date(rooms[0].created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) : '—', icon: '📅' },
             { label: 'Estado', value: 'En línea', icon: '🟢' },
           ].map(stat => (
-            <div key={stat.label} style={{
+            <div key={stat.label} className="dashboard-stat-card" style={{
               background: '#fff', borderRadius: 12, padding: '20px 22px',
               border: '1px solid #e4e4e7',
               boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
             }}>
               <p style={{ margin: '0 0 6px', fontSize: 20 }}>{stat.icon}</p>
-              <p style={{ margin: '0 0 2px', fontSize: 22, fontWeight: 800, color: '#18181b' }}>{stat.value}</p>
-              <p style={{ margin: 0, fontSize: 12, color: '#a1a1aa', fontWeight: 500 }}>{stat.label}</p>
+              <p className="dashboard-stat-value" style={{ margin: '0 0 2px', fontSize: 22, fontWeight: 800, color: '#18181b' }}>{stat.value}</p>
+              <p className="dashboard-stat-label" style={{ margin: 0, fontSize: 12, color: '#a1a1aa', fontWeight: 500 }}>{stat.label}</p>
             </div>
           ))}
         </div>
 
-        <div style={{
+        <div className="dashboard-panel" style={{
           background: '#fff', borderRadius: 16, padding: 32,
           border: '1px solid #e4e4e7',
           boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
@@ -203,7 +320,7 @@ export default function DashboardPage() {
             Crear o unirse a una sala
           </h2>
 
-          <div style={{
+          <div className="dashboard-tab-group" style={{
             display: 'inline-flex', background: '#f4f4f5', borderRadius: 10,
             padding: 4, gap: 2, marginBottom: 28,
           }}>
@@ -221,7 +338,7 @@ export default function DashboardPage() {
           </div>
 
           {tab === 'crear' ? (
-            <form onSubmit={handleCreateRoom} style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
+            <form onSubmit={handleCreateRoom} className="dashboard-room-form">
               <div style={{ flex: 1 }}>
                 <label style={{
                   display: 'block', fontSize: 12, fontWeight: 600,
@@ -254,7 +371,7 @@ export default function DashboardPage() {
               </button>
             </form>
           ) : (
-            <form onSubmit={handleJoinRoom} style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
+            <form onSubmit={handleJoinRoom} className="dashboard-room-form">
               <div style={{ flex: 1 }}>
                 <label style={{
                   display: 'block', fontSize: 12, fontWeight: 600,
@@ -296,21 +413,18 @@ export default function DashboardPage() {
 
         {rooms.length > 0 && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
               <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#18181b' }}>
                 Mis salas
               </h2>
-              <span style={{ fontSize: 12, color: '#a1a1aa' }}>{rooms.length} sala{rooms.length !== 1 ? 's' : ''}</span>
+              <span style={{ fontSize: 12, color: '#a1a1aa', flexShrink: 0 }}>{rooms.length} sala{rooms.length !== 1 ? 's' : ''}</span>
             </div>
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: 16,
-            }}>
+            <div className="dashboard-rooms-grid">
               {rooms.map((room) => (
                 <div
                   key={room.id}
+                  className="dashboard-room-card"
                   onClick={() => router.push(`/room/${room.code}`)}
                   style={{
                     background: '#fff', borderRadius: 14, padding: 24,
@@ -331,22 +445,23 @@ export default function DashboardPage() {
                     el.style.borderColor = '#e4e4e7'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
                     <div style={{
                       width: 44, height: 44, borderRadius: 10,
                       background: '#f4f4f5',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 22, border: '1px solid #e4e4e7',
+                      flexShrink: 0,
                     }}>🏢</div>
                     <span style={{
                       background: '#f4f4f5', color: '#71717a',
                       fontSize: 11, fontFamily: 'monospace', fontWeight: 600,
                       padding: '4px 8px', borderRadius: 6, border: '1px solid #e4e4e7',
-                      letterSpacing: 1,
+                      letterSpacing: 1, flexShrink: 0,
                     }}>{room.code}</span>
                   </div>
 
-                  <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 16, color: '#18181b' }}>
+                  <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 16, color: '#18181b', wordBreak: 'break-word' }}>
                     {room.name}
                   </p>
                   <p style={{ margin: '0 0 20px', color: '#a1a1aa', fontSize: 12 }}>
@@ -355,12 +470,12 @@ export default function DashboardPage() {
 
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    paddingTop: 16, borderTop: '1px solid #f4f4f5',
+                    paddingTop: 16, borderTop: '1px solid #f4f4f5', gap: 12,
                   }}>
                     <span style={{ fontSize: 12, color: '#a1a1aa', fontWeight: 500 }}>
                       Sala de trabajo
                     </span>
-                    <span style={{ fontSize: 13, color: '#18181b', fontWeight: 600 }}>
+                    <span style={{ fontSize: 13, color: '#18181b', fontWeight: 600, flexShrink: 0 }}>
                       Entrar →
                     </span>
                   </div>
@@ -371,7 +486,7 @@ export default function DashboardPage() {
         )}
 
         {rooms.length === 0 && (
-          <div style={{
+          <div className="dashboard-empty-state" style={{
             background: '#fff', borderRadius: 16, padding: '60px 32px',
             border: '1px solid #e4e4e7', textAlign: 'center',
           }}>
