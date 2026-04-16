@@ -104,6 +104,9 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
   const [exitHtml,    setExitHtml]    = useState('')       // snapshot of old page
   const transitioning = useRef(false)
 
+  // page viewport ref (to measure actual height for pageFull)
+  const pageViewportRef = useRef<HTMLDivElement>(null)
+
   // refs for stable gesture closures
   const pageIndexRef  = useRef(0)
   const pagesRef      = useRef<object[]>([{}])
@@ -133,7 +136,7 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
       attributes: {
         style: [
           'outline:none',
-          `min-height:${PAGE_HEIGHT - PAD_TOP - PAD_BOTTOM}px`,
+          'min-height:100%',
           `padding:${PAD_TOP}px 28px ${PAD_BOTTOM}px 76px`,
           'font-size:15px',
           'line-height:32px',
@@ -144,9 +147,10 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
     },
     onUpdate: ({ editor }) => {
       if (isRemote.current) return
-      // Check if page is full
+      // Check if page is full (use actual container height, fallback to computed)
       const prose = editor.view.dom as HTMLElement
-      setPageFull(prose.scrollHeight > PAGE_HEIGHT)
+      const containerH = pageViewportRef.current?.clientHeight ?? PAGE_HEIGHT
+      setPageFull(prose.scrollHeight > containerH)
       // Save + broadcast
       const json = editor.getJSON()
       const updatedPages = [...pagesRef.current]
@@ -371,7 +375,9 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
           color:#c0b090; font-style:italic; float:left; height:0; pointer-events:none;
         }
         .tiptap-notebook strong { color:#1a0e04 }
+        .tiptap-notebook > div { height: 100%; }
         .tiptap-notebook .ProseMirror {
+          min-height: 100%;
           background-image: repeating-linear-gradient(
             transparent, transparent 31px, #c8d8ea 31px, #c8d8ea 32px
           );
@@ -502,7 +508,7 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
         {/* Toolbar */}
         {selected && <Toolbar editor={editor} onImage={() => fileInputRef.current?.click()} />}
 
-        {/* ── Page viewport (fixed height = 12 lines) ── */}
+        {/* ── Page viewport (fills remaining height) ── */}
         {!selected ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ textAlign: 'center', color: '#c8b890' }}>
@@ -512,8 +518,8 @@ export default function Notebook({ roomCode, userId }: { roomCode: string; userI
           </div>
         ) : (
           <>
-            <div style={{
-              flexShrink: 0, height: PAGE_HEIGHT,
+            <div ref={pageViewportRef} style={{
+              flex: 1,
               overflow: 'hidden', position: 'relative',
             }}>
               {/* EXIT: current page folds away in 3D */}
