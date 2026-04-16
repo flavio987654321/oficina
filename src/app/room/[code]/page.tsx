@@ -202,16 +202,44 @@ export default function RoomPage() {
             onClick={() => setGestureOn(g => !g)}
             title={gestureOn ? 'Desactivar gestos' : 'Activar gestos con cámara'}
             style={{
-              background: gestureOn ? 'rgba(80,200,120,0.15)' : 'rgba(255,200,100,0.08)',
+              background: gestureOn ? 'rgba(80,200,120,0.12)' : 'rgba(255,200,100,0.08)',
               border: `1px solid ${gestureOn ? 'rgba(80,200,120,0.3)' : 'rgba(201,147,90,0.25)'}`,
-              borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
+              borderRadius: 999, padding: '4px 8px 4px 10px', cursor: 'pointer',
               color: gestureOn ? '#4ade80' : '#c9935a',
               fontSize: 12, fontFamily: 'sans-serif', fontWeight: 600,
-              display: 'flex', alignItems: 'center', gap: 5,
+              display: 'flex', alignItems: 'center', gap: 8,
               transition: 'all 0.15s',
             }}
           >
-            🖐 {gestureOn ? 'Gestos ON' : 'Gestos'}
+            <span>🖐 Gestos</span>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 32,
+                height: 18,
+                borderRadius: 999,
+                background: gestureOn ? '#4ade80' : 'rgba(201,147,90,0.28)',
+                position: 'relative',
+                boxShadow: gestureOn
+                  ? 'inset 0 0 0 1px rgba(40,120,70,0.35)'
+                  : 'inset 0 0 0 1px rgba(120,80,35,0.22)',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  left: gestureOn ? 16 : 2,
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  background: '#fffaf0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.28)',
+                  transition: 'left 0.18s ease',
+                }}
+              />
+            </span>
           </button>
 
           {/* Gesture guide button */}
@@ -222,10 +250,10 @@ export default function RoomPage() {
               background: 'rgba(255,200,100,0.08)',
               border: '1px solid rgba(201,147,90,0.25)',
               borderRadius: 8, width: 30, height: 30, cursor: 'pointer',
-              color: '#c9935a', fontSize: 14, fontFamily: 'sans-serif', fontWeight: 700,
+              color: '#d7a15e', fontSize: 15, fontFamily: 'sans-serif', fontWeight: 800,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-          >?</button>
+          >!</button>
 
           {/* Close room — only leader */}
           {isLeader && (
