@@ -154,7 +154,7 @@ export default function DashboardPage() {
         @media (max-width: 820px) {
           .dashboard-header {
             padding: 12px 16px;
-            align-items: flex-start;
+            align-items: center;
             flex-wrap: wrap;
           }
           .dashboard-header-right {
@@ -162,6 +162,7 @@ export default function DashboardPage() {
             justify-content: space-between;
             flex-wrap: wrap;
             row-gap: 10px;
+            align-items: flex-start;
           }
           .dashboard-account-stack {
             display: flex;
@@ -229,6 +230,7 @@ export default function DashboardPage() {
             flex-direction: column;
             align-items: flex-end;
             gap: 6px;
+            margin-top: -2px;
           }
           .dashboard-user-chip {
             justify-content: flex-end;
