@@ -19,8 +19,8 @@ const GESTURES: GestureCard[] = [
   { hand: '🤏', name: 'Agarrar nota',  action: 'Pinch sobre una nota para levantarla',    panel: 'Block de notas', color: '#fbbf24' },
   { hand: '🗑',  name: 'Tirar al tacho', action: 'Arrastrá la nota al tacho del rincón',   panel: 'Block de notas', color: '#f87171' },
   // Cuaderno
-  { hand: '👉', name: 'Swipe derecha', action: 'Ir al siguiente proyecto del cuaderno',   panel: 'Cuaderno',     color: '#c084fc' },
-  { hand: '👈', name: 'Swipe izquierda', action: 'Ir al proyecto anterior del cuaderno',  panel: 'Cuaderno',     color: '#c084fc' },
+  { hand: '👉', name: 'Swipe derecha', action: 'Ir a la hoja siguiente del cuaderno',     panel: 'Cuaderno',     color: '#c084fc' },
+  { hand: '👈', name: 'Swipe izquierda', action: 'Ir a la hoja anterior del cuaderno',    panel: 'Cuaderno',     color: '#c084fc' },
   // Pizarra
   { hand: '🤏', name: 'Pinch + mover', action: 'Dibujá en la pizarra moviendo la mano',  panel: 'Pizarra',      color: '#60a0d0' },
   { hand: '✋', name: 'Palma',         action: 'Activar herramienta de selección',        panel: 'Pizarra',      color: '#4ade80' },
