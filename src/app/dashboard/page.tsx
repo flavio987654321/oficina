@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import JarvisAssistant from '@/components/JarvisAssistant'
 import { useJarvisHandler } from '@/lib/jarvisBus'
 import { supabase } from '@/lib/supabase'
+import { getDueReminders, dismissReminder, addReminder } from '@/lib/reminders'
+import type { StoredReminder } from '@/lib/reminders'
 
 type Room = { id: string; name: string; code: string; created_at: string }
 
@@ -23,6 +25,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'crear' | 'unirse'>('crear')
+  const [dueReminders, setDueReminders] = useState<StoredReminder[]>([])
 
   const loadRooms = useCallback(async (uid: string) => {
     const { data } = await supabase.from('rooms').select('*')
@@ -72,6 +75,8 @@ export default function DashboardPage() {
       setUserId(data.user.id)
       void loadRooms(data.user.id)
     })
+    // Check for due reminders on dashboard load
+    setDueReminders(getDueReminders())
   }, [loadRooms, router])
 
   async function handleCreateRoom(e: React.FormEvent) {
@@ -94,6 +99,13 @@ export default function DashboardPage() {
 
     if (command.action === 'join_room' && command.roomCode) {
       return joinRoom(command.roomCode)
+    }
+
+    if (command.action === 'add_note' && command.insertText) {
+      if (command.reminderAt) {
+        addReminder(command.insertText, command.reminderAt)
+      }
+      return true
     }
 
     return false
@@ -311,6 +323,62 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
+
+      {/* Reminder popups */}
+      {dueReminders.length > 0 && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 20, padding: '32px 28px',
+            maxWidth: 420, width: '100%',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+            border: '1px solid #e4e4e7',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+              <span style={{ fontSize: 32 }}>⏰</span>
+              <div>
+                <p style={{ margin: 0, fontWeight: 800, fontSize: 17, color: '#18181b' }}>
+                  {dueReminders.length === 1 ? 'Recordatorio' : `${dueReminders.length} recordatorios`}
+                </p>
+                <p style={{ margin: 0, fontSize: 12, color: '#a1a1aa' }}>
+                  Jarvis te quería avisar esto
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+              {dueReminders.map(r => (
+                <div key={r.id} style={{
+                  background: '#fef9c3', border: '1px solid #fde047',
+                  borderRadius: 12, padding: '12px 16px',
+                  fontSize: 14, color: '#1a1208', fontFamily: 'Georgia, serif',
+                  lineHeight: 1.6,
+                }}>
+                  {r.text}
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                dueReminders.forEach(r => dismissReminder(r.id))
+                setDueReminders([])
+              }}
+              style={{
+                width: '100%', background: '#18181b', border: 'none',
+                borderRadius: 10, padding: '12px', color: '#fff',
+                fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}
+            >
+              Entendido ✓
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="dashboard-main">
         <div style={{ marginBottom: 40 }}>

@@ -15,6 +15,32 @@ function extractRoomName(raw: string) {
   return match?.[1]?.trim() ?? null
 }
 
+function extractNoteContent(raw: string): string | null {
+  const match = raw.match(/(?:anot[aá]me|hac[eé]me acordar\s+(?:de\s+)?|anot[aá]\s+|recod[aá]me\s+(?:de\s+)?)(?:que\s+)?(.+)$/i)
+  return match?.[1]?.trim() ?? null
+}
+
+function extractReminderDate(text: string): string | null {
+  const lower = text.toLowerCase()
+  const now = new Date()
+  const d = new Date(now)
+
+  const timeMatch = lower.match(/a las (\d{1,2})(?::(\d{2}))?/)
+  if (!timeMatch) return null
+
+  const h = parseInt(timeMatch[1])
+  const m = parseInt(timeMatch[2] ?? '0')
+
+  if (lower.includes('mañana')) d.setDate(d.getDate() + 1)
+  else if (lower.includes('pasado mañana')) d.setDate(d.getDate() + 2)
+
+  d.setHours(h, m, 0, 0)
+  if (d <= now && !lower.includes('mañana') && !lower.includes('pasado')) {
+    d.setDate(d.getDate() + 1)
+  }
+  return d.toISOString()
+}
+
 function extractProjectName(raw: string) {
   const match = raw.match(/(?:proyecto|project)(?:\s+llamado|\s+que\s+se\s+llame|\s+con\s+nombre|\s+de)?\s+(.+)$/i)
   return match?.[1]?.trim() ?? null
@@ -51,6 +77,7 @@ function cmd(partial: Partial<JarvisCommand> & Pick<JarvisCommand, 'action' | 's
     projectName: null,
     participantName: null,
     insertText: null,
+    reminderAt: null,
     ...partial,
   }
 }
@@ -146,9 +173,21 @@ export function parseJarvisFallback(rawUtterance: string, context: JarvisContext
     return cmd({ action: 'previous_page', spokenReply: 'Voy a la hoja anterior.' })
   }
 
-  // ── Notas rápidas ───────────────────────────────────────
-  if ((utterance.includes('agrega nota') || utterance.includes('agregar nota') || utterance.includes('crea una nota') || utterance.includes('nueva nota')) && context.route === 'room') {
-    return cmd({ action: 'add_note', spokenReply: 'Agrego una nota nueva.' })
+  // ── Notas rápidas / recordatorios ──────────────────────
+  const isNoteRequest =
+    utterance.includes('agrega nota') || utterance.includes('agregar nota') ||
+    utterance.includes('crea una nota') || utterance.includes('nueva nota') ||
+    /anot[aá]me/.test(utterance) || /hac[eé]me acordar/.test(utterance) ||
+    /recod[aá]me/.test(utterance)
+  if (isNoteRequest) {
+    const insertText = extractNoteContent(rawUtterance) ?? null
+    const reminderAt = extractReminderDate(rawUtterance)
+    const replyText = reminderAt
+      ? `Anoto y te aviso cuando llegue el momento.`
+      : insertText
+        ? `Anoto: "${insertText.slice(0, 40)}${insertText.length > 40 ? '…' : ''}".`
+        : 'Agrego una nota nueva.'
+    return cmd({ action: 'add_note', insertText, reminderAt, spokenReply: replyText })
   }
 
   if ((utterance.includes('elimina nota') || utterance.includes('borrar nota') || utterance.includes('borra nota')) && context.route === 'room') {

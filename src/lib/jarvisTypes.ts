@@ -46,6 +46,8 @@ export type JarvisCommand = {
   participantName: string | null
   /** Texto que Jarvis quiere insertar en el editor activo (cuaderno o nota) */
   insertText: string | null
+  /** ISO timestamp para recordatorios (ej: "2025-06-01T08:00:00") */
+  reminderAt: string | null
   spokenReply: string
 }
 

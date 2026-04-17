@@ -10,6 +10,8 @@ type JarvisAssistantProps = {
   variant?: 'dark' | 'light'
   /** Si es true, arranca a escuchar automáticamente sin que el usuario apriete nada */
   autoStart?: boolean
+  /** Si es true, no muestra botón ni errores — solo el orbe cuando habla/procesa */
+  silent?: boolean
 }
 
 type JarvisStatus = 'off' | 'listening' | 'awake' | 'processing' | 'speaking' | 'error'
@@ -17,10 +19,11 @@ type JarvisStatus = 'off' | 'listening' | 'awake' | 'processing' | 'speaking' | 
 type SpeechRecognitionAlternative = { transcript: string }
 type SpeechRecognitionResultLike  = { isFinal: boolean; 0: SpeechRecognitionAlternative }
 type SpeechRecognitionEventLike   = { resultIndex: number; results: ArrayLike<SpeechRecognitionResultLike> }
+type SpeechRecognitionErrorEventLike = { error: string }
 type SpeechRecognitionLike = {
   continuous: boolean; interimResults: boolean; lang: string
   onresult: ((event: SpeechRecognitionEventLike) => void) | null
-  onerror: (() => void) | null
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null
   onend: (() => void) | null
   start: () => void; stop: () => void
 }
@@ -91,7 +94,7 @@ function getExtractedCommand(transcript: string) {
 }
 
 // ── Component ────────────────────────────────────────────
-export default function JarvisAssistant({ context, variant = 'dark', autoStart = false }: JarvisAssistantProps) {
+export default function JarvisAssistant({ context, variant = 'dark', autoStart = false, silent = false }: JarvisAssistantProps) {
   const [enabled,   setEnabled]   = useState(autoStart)
   const [status,    setStatus]    = useState<JarvisStatus>(autoStart ? 'listening' : 'off')
   const [heardText, setHeardText] = useState('')
@@ -225,10 +228,15 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
       }
     }
 
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
       if (speakingRef.current) return
-      setErrorText('No pude escuchar bien. Probá de nuevo.')
-      setStatus('error')
+      // Transient errors — just restart silently
+      if (event.error === 'no-speech' || event.error === 'aborted') return
+      // Real errors
+      if (!silent) {
+        setErrorText('No pude escuchar bien. Probá de nuevo.')
+        setStatus('error')
+      }
     }
 
     recognition.onend = () => {
@@ -269,7 +277,10 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
     status === 'speaking'    ? '🔊' :
     status === 'error'       ? '⚠️' : '◉'
 
-  const orbVisible = enabled || status === 'processing' || status === 'speaking' || status === 'error'
+  // In silent mode the orb only shows when there's something to communicate
+  const orbVisible = silent
+    ? (status === 'processing' || status === 'speaking')
+    : (enabled || status === 'processing' || status === 'speaking' || status === 'error')
 
   return (
     <>
@@ -290,7 +301,7 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
         }
       `}</style>
 
-      <button
+      {!silent && <button
         onClick={() => { setErrorText(''); setReply(''); setHeardText(''); setEnabled(v => !v) }}
         title={enabled ? 'Desactivar Jarvis' : 'Activar Jarvis por voz'}
         style={{
@@ -302,7 +313,7 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
       >
         <span style={{ fontSize: 13 }}>{statusDot}</span>
         <span>Jarvis{enabled ? '' : ' (off)'}</span>
-      </button>
+      </button>}
 
       {orbVisible && (
         <div className="jarvis-orb-shell" style={{

@@ -226,20 +226,6 @@ export default function RoomPage() {
         <div style={{ display: compactHeader ? 'none' : 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ color: '#7a6040', fontSize: 12, fontFamily: 'sans-serif' }}>{userName}</span>
 
-          <JarvisAssistant
-            autoStart={!compactHeader}
-            context={{
-              route: 'room',
-              userName,
-              roomName,
-              roomCode: typeof code === 'string' ? code : '',
-              panelContent,
-              gesturesOn: gestureOn,
-              isLeader,
-              currentProjectName,
-            }}
-          />
-
           {/* Chat toggle */}
           <button
             onClick={handleToggleChat}
@@ -552,22 +538,6 @@ export default function RoomPage() {
           gap: 10,
           pointerEvents: 'none',
         }}>
-          <div style={{ pointerEvents: 'auto' }}>
-            <JarvisAssistant
-              autoStart={compactHeader}
-              context={{
-                route: 'room',
-                userName,
-                roomName,
-                roomCode: typeof code === 'string' ? code : '',
-                panelContent,
-                gesturesOn: gestureOn,
-                isLeader,
-                currentProjectName,
-              }}
-            />
-          </div>
-
           <button
             onClick={handleToggleGestures}
             title={gestureOn ? 'Desactivar gestos' : 'Activar gestos con camara'}
@@ -752,6 +722,24 @@ export default function RoomPage() {
 
       {/* Gesture guide modal */}
       {guideOpen && <GestureGuide onClose={() => setGuideOpen(false)} />}
+
+      {/* Jarvis — invisible wake-word listener, orb only appears when speaking/processing */}
+      {!loading && (
+        <JarvisAssistant
+          silent
+          autoStart
+          context={{
+            route: 'room',
+            userName,
+            roomName,
+            roomCode: typeof code === 'string' ? code : '',
+            panelContent,
+            gesturesOn: gestureOn,
+            isLeader,
+            currentProjectName,
+          }}
+        />
+      )}
 
     </div>
   )

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useGesture } from '@/lib/useGesture'
 import { useJarvisHandler } from '@/lib/jarvisBus'
+import { addReminder } from '@/lib/reminders'
 
 type StickyNote = {
   id: string
@@ -366,7 +367,24 @@ export default function QuickNotes({ roomCode, userName }: { roomCode: string; u
 
   useJarvisHandler(useCallback(async (command) => {
     if (command.action === 'add_note') {
-      addNoteRef.current()
+      if (command.insertText) {
+        // Create note with content pre-filled
+        const current = notesStateRef.current
+        const newNote: StickyNote = {
+          id: crypto.randomUUID(),
+          title: '',
+          text: command.insertText,
+          color: COLORS[current.length % COLORS.length].bg,
+          createdAt: new Date().toISOString(),
+        }
+        setEditing(newNote)
+        persistRef.current([...current, newNote])
+        if (command.reminderAt) {
+          addReminder(command.insertText, command.reminderAt)
+        }
+      } else {
+        addNoteRef.current()
+      }
       return true
     }
 
