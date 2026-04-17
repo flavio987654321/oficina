@@ -8,9 +8,7 @@ import type { JarvisCommand, JarvisContext } from '@/lib/jarvisTypes'
 type JarvisAssistantProps = {
   context: JarvisContext
   variant?: 'dark' | 'light'
-  /** Si es true, arranca a escuchar automáticamente sin que el usuario apriete nada */
   autoStart?: boolean
-  /** Si es true, no muestra botón ni errores — solo el orbe cuando habla/procesa */
   silent?: boolean
 }
 
@@ -33,14 +31,14 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionLike
 type WeatherData = { temp: number; description: string }
 
 function wmoToSpanish(code: number): string {
-  if (code === 0)            return 'cielo despejado'
-  if (code <= 3)             return 'algo nublado'
-  if (code <= 48)            return 'niebla'
-  if (code <= 55)            return 'llovizna'
-  if (code <= 65)            return 'lluvia'
-  if (code <= 77)            return 'nieve'
-  if (code <= 82)            return 'chubascos'
-  if (code <= 86)            return 'nieve'
+  if (code === 0)  return 'cielo despejado'
+  if (code <= 3)   return 'algo nublado'
+  if (code <= 48)  return 'niebla'
+  if (code <= 55)  return 'llovizna'
+  if (code <= 65)  return 'lluvia'
+  if (code <= 77)  return 'nieve'
+  if (code <= 82)  return 'chubascos'
+  if (code <= 86)  return 'nieve'
   return 'tormenta'
 }
 
@@ -57,9 +55,7 @@ async function fetchWeather(): Promise<WeatherData | null> {
           const cw   = data.current_weather
           if (!cw) { resolve(null); return }
           resolve({ temp: Math.round(cw.temperature), description: wmoToSpanish(cw.weathercode) })
-        } catch {
-          resolve(null)
-        }
+        } catch { resolve(null) }
       },
       () => resolve(null),
       { timeout: 6000 }
@@ -83,37 +79,52 @@ function getSpeechRecognitionCtor() {
 
 function selectSpanishVoice() {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null
-  return window.speechSynthesis.getVoices().find(v => v.lang.toLowerCase().startsWith('es')) ?? null
+  const voices = window.speechSynthesis.getVoices()
+  return (
+    voices.find(v => v.lang === 'es-AR') ??
+    voices.find(v => v.lang.startsWith('es-')) ??
+    voices.find(v => v.lang.toLowerCase().startsWith('es')) ??
+    null
+  )
 }
 
-function getExtractedCommand(transcript: string) {
+function extractCommand(transcript: string) {
   const cleaned = transcript.trim()
   const match   = cleaned.match(/jarvis\b[\s,:-]*(.*)$/i)
-  if (match) return { wokeJarvis: true,  commandText: match[1]?.trim() ?? '' }
+  if (match) return { wokeJarvis: true, commandText: match[1]?.trim() ?? '' }
   return        { wokeJarvis: false, commandText: cleaned }
 }
 
 // ── Component ────────────────────────────────────────────
-export default function JarvisAssistant({ context, variant = 'dark', autoStart = false, silent = false }: JarvisAssistantProps) {
+export default function JarvisAssistant({
+  context, variant = 'dark', autoStart = false, silent = false,
+}: JarvisAssistantProps) {
   const [enabled,   setEnabled]   = useState(autoStart)
   const [status,    setStatus]    = useState<JarvisStatus>(autoStart ? 'listening' : 'off')
   const [heardText, setHeardText] = useState('')
   const [reply,     setReply]     = useState('')
   const [errorText, setErrorText] = useState('')
 
-  const recognitionRef  = useRef<SpeechRecognitionLike | null>(null)
-  const shouldRestartRef = useRef(false)
-  const speakingRef     = useRef(false)
-  const awakeUntilRef   = useRef(0)
-  const processingRef   = useRef(false)
+  // These refs never go stale inside recognition callbacks
+  const recognitionRef   = useRef<SpeechRecognitionLike | null>(null)
+  const shouldListenRef  = useRef(autoStart)
+  const speakingRef      = useRef(false)
+  const processingRef    = useRef(false)
+  const awakeUntilRef    = useRef(0)
+  const contextRef       = useRef(context)
+  const enabledRef       = useRef(autoStart)
+  useEffect(() => { contextRef.current = context }, [context])
+  useEffect(() => { enabledRef.current = enabled }, [enabled])
 
   // ── speak ────────────────────────────────────────────
-  const speak = useCallback(async (text: string) => {
+  const speak = useCallback((text: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text.trim()) {
-      setStatus(enabled ? 'listening' : 'off')
+      speakingRef.current = false
+      if (enabledRef.current) recognitionRef.current?.start()
       return
     }
     window.speechSynthesis.cancel()
+    // Stop recognition while TTS plays to avoid feedback loop
     recognitionRef.current?.stop()
     speakingRef.current = true
     setStatus('speaking')
@@ -121,24 +132,42 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
 
     const utterance   = new SpeechSynthesisUtterance(text)
     utterance.lang    = 'es-AR'
-    utterance.voice   = selectSpanishVoice()
-    utterance.rate    = 1
+    utterance.rate    = 1.1
     utterance.pitch   = 1
-    utterance.onend   = () => { speakingRef.current = false; if (enabled) { setStatus('listening'); recognitionRef.current?.start() } else setStatus('off') }
-    utterance.onerror = () => { speakingRef.current = false; setStatus(enabled ? 'listening' : 'off') }
-    window.speechSynthesis.speak(utterance)
-  }, [enabled])
+    // Delay voice selection to give browser time to load voices
+    const voice = selectSpanishVoice()
+    if (voice) utterance.voice = voice
 
-  // ── greet: saludo según hora + clima ─────────────────
+    utterance.onend = () => {
+      speakingRef.current = false
+      if (enabledRef.current && shouldListenRef.current) {
+        setStatus('listening')
+        try { recognitionRef.current?.start() } catch {}
+      } else {
+        setStatus('off')
+      }
+    }
+    utterance.onerror = () => {
+      speakingRef.current = false
+      if (enabledRef.current) {
+        setStatus('listening')
+        try { recognitionRef.current?.start() } catch {}
+      }
+    }
+    window.speechSynthesis.speak(utterance)
+  }, [])
+
+  // ── greet ────────────────────────────────────────────
   const greet = useCallback(async () => {
     setStatus('processing')
-    const firstName   = context.userName?.split(' ')[0] ?? ''
+    const firstName   = contextRef.current.userName?.split(' ')[0] ?? ''
     const greeting    = getTimeGreeting()
     const base        = `${greeting}${firstName ? `, ${firstName}` : ''}!`
     const weather     = await fetchWeather()
     const weatherText = weather ? ` Afuera hay ${weather.temp} grados y está ${weather.description}.` : ''
-    await speak(`${base}${weatherText}`)
-  }, [context.userName, speak])
+    processingRef.current = false
+    speak(`${base}${weatherText}`)
+  }, [speak])
 
   // ── handleCommand ────────────────────────────────────
   const handleCommand = useCallback(async (commandText: string) => {
@@ -151,71 +180,99 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
       const res     = await fetch('/api/jarvis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ utterance: commandText, context }),
+        body: JSON.stringify({ utterance: commandText, context: contextRef.current }),
       })
       const payload = await res.json() as { command?: JarvisCommand }
       const command = payload.command
-      if (!res.ok || !command) throw new Error('Jarvis no pudo interpretar el pedido')
+      if (!res.ok || !command) throw new Error('sin respuesta')
 
       const handled     = await dispatchJarvisCommand(command)
       const spokenReply = handled
         ? command.spokenReply
-        : 'Entendí el pedido, pero acá todavía no lo puedo ejecutar.'
-      await speak(spokenReply)
-    } catch (error) {
-      console.error('Jarvis command error:', error)
-      setErrorText('Jarvis no pudo procesar ese pedido.')
-      setStatus('error')
+        : 'Entendí, pero acá no puedo ejecutar eso.'
+      processingRef.current = false
+      speak(spokenReply)
+    } catch {
+      processingRef.current = false
+      if (!silent) {
+        setErrorText('No pude procesar ese pedido.')
+        setStatus('error')
+      } else {
+        setStatus('listening')
+        try { recognitionRef.current?.start() } catch {}
+      }
     } finally {
       awakeUntilRef.current = 0
-      processingRef.current = false
     }
-  }, [context, speak])
+  }, [speak, silent])
 
   // ── Recognition lifecycle ─────────────────────────────
   useEffect(() => {
     if (!enabled) {
-      shouldRestartRef.current = false
+      shouldListenRef.current = false
       recognitionRef.current?.stop()
+      window.speechSynthesis?.cancel()
       setStatus('off')
       return
     }
 
     const RecognitionCtor = getSpeechRecognitionCtor()
     if (!RecognitionCtor) {
-      setErrorText('Tu navegador no soporta reconocimiento de voz.')
-      setStatus('error')
+      if (!silent) {
+        setErrorText('Tu navegador no soporta reconocimiento de voz.')
+        setStatus('error')
+      }
       setEnabled(false)
       return
     }
 
-    shouldRestartRef.current = true
+    shouldListenRef.current = true
+
     const recognition = new RecognitionCtor()
     recognition.continuous    = true
     recognition.interimResults = true
     recognition.lang          = 'es-AR'
 
     recognition.onresult = (event) => {
-      let finalText = ''; let interimText = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result     = event.results[i]
-        const transcript = result[0]?.transcript ?? ''
-        if (result.isFinal) finalText  += transcript
-        else                interimText += transcript
-      }
-      if (interimText.trim()) { setStatus('listening'); setHeardText(interimText.trim()) }
-      if (!finalText.trim()) return
+      // While speaking, ignore everything (avoid feedback loop)
+      if (speakingRef.current) return
 
-      const { wokeJarvis, commandText } = getExtractedCommand(finalText)
+      let finalText = ''
+      let interimText = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const r = event.results[i]
+        const t = r[0]?.transcript ?? ''
+        if (r.isFinal) finalText  += t
+        else           interimText += t
+      }
+
+      // Show interim so user sees we're hearing them
+      const interimTrimmed = interimText.trim()
+      if (interimTrimmed) {
+        // Wake-word in interim → instant visual feedback
+        if (/jarvis/i.test(interimTrimmed)) {
+          setStatus('awake')
+          setHeardText(interimTrimmed)
+        } else if (status !== 'awake' && status !== 'processing') {
+          setHeardText(interimTrimmed)
+        }
+      }
+
+      if (!finalText.trim()) return
+      // While processing, swallow extra commands (don't double-fire)
+      if (processingRef.current) return
+
+      const { wokeJarvis, commandText } = extractCommand(finalText)
 
       if (wokeJarvis) {
         awakeUntilRef.current = Date.now() + 9000
+        setStatus('awake')
 
-        // Saludo: "hola jarvis", "jarvis" solo, o preguntas de clima/hora
-        const isGreeting    = !commandText || /^(hola|buenas|buenos dias|buenas tardes|hey)$/i.test(commandText)
-        const isWeatherAsk  = /\b(tiempo|clima|temperatura|calor|frio|llueve|lluvia)\b/i.test(commandText)
+        const isGreeting   = !commandText || /^(hola|buenas|buenos dias|buenas tardes|hey|que tal|como estas)$/i.test(commandText)
+        const isWeatherAsk = /\b(tiempo|clima|temperatura|calor|frio|llueve|lluvia)\b/i.test(commandText)
 
         if (isGreeting || isWeatherAsk) {
+          processingRef.current = true
           void greet()
         } else {
           void handleCommand(commandText)
@@ -223,38 +280,51 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
         return
       }
 
+      // In the 9-second awake window, accept commands without re-saying "Jarvis"
       if (Date.now() < awakeUntilRef.current) {
         void handleCommand(finalText.trim())
       }
     }
 
     recognition.onerror = (event) => {
-      if (speakingRef.current) return
-      // Transient errors — just restart silently
+      // no-speech and aborted are normal — just let onend restart it
       if (event.error === 'no-speech' || event.error === 'aborted') return
-      // Real errors
+      if (speakingRef.current) return
       if (!silent) {
-        setErrorText('No pude escuchar bien. Probá de nuevo.')
+        setErrorText('Hubo un error de audio.')
         setStatus('error')
       }
     }
 
+    // KEY FIX: always restart unless we're speaking or explicitly stopped
     recognition.onend = () => {
-      if (shouldRestartRef.current && enabled && !speakingRef.current && !processingRef.current) {
-        setStatus('listening')
-        recognition.start()
-      }
+      if (!shouldListenRef.current || speakingRef.current) return
+      setStatus('listening')
+      try { recognition.start() } catch {}
     }
 
     recognitionRef.current = recognition
     setStatus('listening')
-    recognition.start()
+    try { recognition.start() } catch {}
 
-    return () => { shouldRestartRef.current = false; recognition.stop(); recognitionRef.current = null }
-  }, [enabled, handleCommand, greet, speak])
+    return () => {
+      shouldListenRef.current = false
+      recognition.onend = null
+      recognition.onresult = null
+      recognition.onerror = null
+      try { recognition.stop() } catch {}
+      recognitionRef.current = null
+    }
+  // Only re-run when enabled flips, not on every context/callback change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled])
 
   useEffect(() => {
-    return () => { if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel() }
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+      }
+    }
   }, [])
 
   // ── UI ───────────────────────────────────────────────
@@ -270,17 +340,17 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
         color: enabled ? '#2563eb' : '#52525b',
       }
 
-  const statusDot =
-    status === 'listening'   ? '🎙' :
-    status === 'awake'       ? '👂' :
-    status === 'processing'  ? '⏳' :
-    status === 'speaking'    ? '🔊' :
-    status === 'error'       ? '⚠️' : '◉'
+  const statusIcon =
+    status === 'listening'  ? '🎙' :
+    status === 'awake'      ? '👂' :
+    status === 'processing' ? '⏳' :
+    status === 'speaking'   ? '🔊' :
+    status === 'error'      ? '⚠️' : '◉'
 
-  // In silent mode the orb only shows when there's something to communicate
-  const orbVisible = silent
-    ? (status === 'processing' || status === 'speaking')
-    : (enabled || status === 'processing' || status === 'speaking' || status === 'error')
+  // Orb: full for processing/speaking; compact dot for awake; nothing when just listening silently
+  const showFullOrb   = status === 'processing' || status === 'speaking' || (!silent && status === 'error')
+  const showAwakeDot  = silent && status === 'awake'
+  const showListenDot = silent && status === 'listening' && enabled
 
   return (
     <>
@@ -294,28 +364,59 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
           0%,100% { opacity: 0.75; }
           50%     { opacity: 1; }
         }
+        @keyframes jarvisAwakePulse {
+          0%,100% { transform: scale(1); opacity: 0.9; }
+          50%     { transform: scale(1.35); opacity: 1; }
+        }
         @media (max-width: 560px) {
-          .jarvis-orb-shell  { bottom: 16px !important; gap: 8px !important; }
-          .jarvis-orb-core   { width: 58px !important; height: 58px !important; }
-          .jarvis-orb-panel  { min-width: min(220px, calc(100vw - 28px)) !important; max-width: calc(100vw - 28px) !important; padding: 10px 12px !important; }
+          .jarvis-orb-shell { bottom: 16px !important; gap: 8px !important; }
+          .jarvis-orb-core  { width: 58px !important; height: 58px !important; }
+          .jarvis-orb-panel { min-width: min(220px, calc(100vw - 28px)) !important; max-width: calc(100vw - 28px) !important; padding: 10px 12px !important; }
         }
       `}</style>
 
-      {!silent && <button
-        onClick={() => { setErrorText(''); setReply(''); setHeardText(''); setEnabled(v => !v) }}
-        title={enabled ? 'Desactivar Jarvis' : 'Activar Jarvis por voz'}
-        style={{
-          ...buttonColors,
-          borderRadius: 999, padding: '6px 12px', cursor: 'pointer',
-          fontSize: 12, fontFamily: 'sans-serif', fontWeight: 700,
-          display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.18s ease',
-        }}
-      >
-        <span style={{ fontSize: 13 }}>{statusDot}</span>
-        <span>Jarvis{enabled ? '' : ' (off)'}</span>
-      </button>}
+      {/* Toggle button (non-silent mode only) */}
+      {!silent && (
+        <button
+          onClick={() => { setErrorText(''); setReply(''); setHeardText(''); setEnabled(v => !v) }}
+          title={enabled ? 'Desactivar Jarvis' : 'Activar Jarvis por voz'}
+          style={{
+            ...buttonColors,
+            borderRadius: 999, padding: '6px 12px', cursor: 'pointer',
+            fontSize: 12, fontFamily: 'sans-serif', fontWeight: 700,
+            display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.18s ease',
+          }}
+        >
+          <span style={{ fontSize: 13 }}>{statusIcon}</span>
+          <span>Jarvis{enabled ? '' : ' (off)'}</span>
+        </button>
+      )}
 
-      {orbVisible && (
+      {/* Tiny ambient dot — only in silent mode while listening */}
+      {showListenDot && (
+        <div style={{
+          position: 'fixed', bottom: 14, left: 14, zIndex: 110,
+          width: 8, height: 8, borderRadius: '50%',
+          background: 'rgba(96,165,250,0.45)',
+          boxShadow: '0 0 6px rgba(96,165,250,0.3)',
+          pointerEvents: 'none',
+        }} />
+      )}
+
+      {/* Awake dot — bigger pulse while waiting for command */}
+      {showAwakeDot && (
+        <div style={{
+          position: 'fixed', bottom: 10, left: 10, zIndex: 110,
+          width: 14, height: 14, borderRadius: '50%',
+          background: '#60a5fa',
+          boxShadow: '0 0 12px rgba(96,165,250,0.7)',
+          animation: 'jarvisAwakePulse 1s infinite ease-in-out',
+          pointerEvents: 'none',
+        }} />
+      )}
+
+      {/* Full orb — processing / speaking */}
+      {showFullOrb && (
         <div className="jarvis-orb-shell" style={{
           position: 'fixed', left: '50%', bottom: 24,
           transform: 'translateX(-50%)', zIndex: 120,
@@ -327,8 +428,7 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
             background:
               status === 'error'      ? 'radial-gradient(circle at 30% 30%, #fca5a5, #7f1d1d 70%)' :
               status === 'processing' ? 'radial-gradient(circle at 30% 30%, #fcd34d, #7c3aed 72%)' :
-              status === 'speaking'   ? 'radial-gradient(circle at 30% 30%, #86efac, #15803d 72%)' :
-                                        'radial-gradient(circle at 30% 30%, #7dd3fc, #2563eb 72%)',
+                                        'radial-gradient(circle at 30% 30%, #86efac, #15803d 72%)',
             animation: 'jarvisPulse 1.8s infinite ease-in-out, jarvisGlow 1.6s infinite ease-in-out',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 16px 36px rgba(0,0,0,0.35)',
@@ -343,13 +443,10 @@ export default function JarvisAssistant({ context, variant = 'dark', autoStart =
             backdropFilter: 'blur(12px)', color: '#e2e8f0', fontFamily: 'sans-serif', textAlign: 'center',
           }}>
             <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#93c5fd' }}>
-              {status === 'processing' ? 'PROCESANDO' :
-               status === 'speaking'   ? 'RESPONDIENDO' :
-               status === 'awake'      ? 'ESCUCHANDO' :
-               status === 'error'      ? 'ERROR' : 'JARVIS ACTIVO'}
+              {status === 'processing' ? 'PROCESANDO' : status === 'speaking' ? 'RESPONDIENDO' : 'ERROR'}
             </p>
             <p style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.5, color: '#f8fafc' }}>
-              {errorText || reply || heardText || 'Decí "Jarvis" y tu pedido...'}
+              {errorText || reply || heardText || '...'}
             </p>
           </div>
         </div>

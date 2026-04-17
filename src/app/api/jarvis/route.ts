@@ -197,7 +197,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan utterance o context' }, { status: 400 })
   }
 
-  // 1. Intentar parsear como comando de UI con OpenAI
+  // 1. Regex fallback primero — respuesta instantánea para comandos conocidos
+  const fallback = parseJarvisFallback(utterance, context)
+  if (fallback.action !== 'unknown') {
+    return NextResponse.json({ command: fallback, provider: 'fallback' })
+  }
+
+  // 2. Regex no lo reconoció → intentar OpenAI para comandos de UI complejos
   let command: JarvisCommand | null = null
   try {
     command = await parseWithOpenAI(utterance, context)
@@ -205,22 +211,19 @@ export async function POST(req: NextRequest) {
     console.error('Jarvis command parse error:', error)
   }
 
-  // 2. Si OpenAI falló, usar fallback regex
-  if (!command) {
-    command = parseJarvisFallback(utterance, context)
+  if (command && command.action !== 'unknown') {
+    return NextResponse.json({ command, provider: 'openai' })
   }
 
-  // 3. Si el resultado es "unknown", intentar modo conversacional
-  if (command.action === 'unknown') {
-    try {
-      const conversational = await getConversationalReply(utterance, context)
-      if (conversational) {
-        return NextResponse.json({ command: conversational, provider: 'conversational' })
-      }
-    } catch (error) {
-      console.error('Jarvis conversational error:', error)
+  // 3. Todavía desconocido → modo conversacional (preguntas, redacción libre)
+  try {
+    const conversational = await getConversationalReply(utterance, context)
+    if (conversational) {
+      return NextResponse.json({ command: conversational, provider: 'conversational' })
     }
+  } catch (error) {
+    console.error('Jarvis conversational error:', error)
   }
 
-  return NextResponse.json({ command, provider: command ? 'openai' : 'fallback' })
+  return NextResponse.json({ command: fallback, provider: 'fallback' })
 }
