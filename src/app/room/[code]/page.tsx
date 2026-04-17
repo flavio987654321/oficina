@@ -227,6 +227,7 @@ export default function RoomPage() {
           <span style={{ color: '#7a6040', fontSize: 12, fontFamily: 'sans-serif' }}>{userName}</span>
 
           <JarvisAssistant
+            autoStart={!compactHeader}
             context={{
               route: 'room',
               userName,
@@ -445,20 +446,6 @@ export default function RoomPage() {
             </div>
 
             <div style={{ padding: 16, display: 'grid', gap: 12 }}>
-              <div style={{ display: 'none' }}>
-                <JarvisAssistant
-                  context={{
-                    route: 'room',
-                    userName,
-                    roomName,
-                    roomCode: typeof code === 'string' ? code : '',
-                    panelContent,
-                    gesturesOn: gestureOn,
-                    isLeader,
-                  }}
-                />
-              </div>
-
               <button
                 onClick={handleToggleChat}
                 style={{
@@ -567,6 +554,7 @@ export default function RoomPage() {
         }}>
           <div style={{ pointerEvents: 'auto' }}>
             <JarvisAssistant
+              autoStart={compactHeader}
               context={{
                 route: 'room',
                 userName,
@@ -575,6 +563,7 @@ export default function RoomPage() {
                 panelContent,
                 gesturesOn: gestureOn,
                 isLeader,
+                currentProjectName,
               }}
             />
           </div>
